@@ -14,13 +14,14 @@
     .app-container { max-width: 430px; margin: 0 auto; min-height: 100vh; background: white; position: relative; box-shadow: 0 0 40px rgba(0,0,0,0.15); }
     .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: white; border-top: 1px solid #e5e7eb; z-index: 100; }
     .content { padding-bottom: 80px; }
-    input, select { outline: none; }
+    input, select { outline: none; -webkit-appearance: none; appearance: none; }
     .card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
     .badge-red { background: #fee2e2; color: #dc2626; }
     .badge-yellow { background: #fef9c3; color: #ca8a04; }
     .badge-green { background: #dcfce7; color: #16a34a; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
     .modal-box { background: white; border-radius: 24px 24px 0 0; padding: 24px; width: 100%; max-width: 430px; max-height: 90vh; overflow-y: auto; }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px !important; }
   </style>
 </head>
 <body>
@@ -28,18 +29,50 @@
 <script type="text/babel">
 const { useState, useEffect } = React;
 
-// ─── Date initiale demo ───────────────────────────────────────────────────────
-const initialCars = [
-  { id: 1, marca: 'Dacia', model: 'Logan', an: 2019, numar: 'B 123 ABC', culoare: '#3B82F6' },
-];
-const initialDocs = [
-  { id: 1, carId: 1, tip: 'ITP', expira: '2025-06-15', emis: '2024-06-15', nota: '' },
-  { id: 2, carId: 1, tip: 'RCA', expira: '2025-07-01', emis: '2025-01-01', nota: 'Allianz' },
-  { id: 3, carId: 1, tip: 'Rovinieta', expira: '2025-05-20', emis: '2025-05-20', nota: '' },
-];
-const initialServices = [
-  { id: 1, carId: 1, data: '2024-11-10', descriere: 'Schimb ulei + filtre', km: 87000, cost: 450, nota: '' },
-];
+// ─── Baza de date marci si modele ─────────────────────────────────────────────
+const CAR_BRANDS = {
+  "Alfa Romeo": ["147","156","159","166","Giulia","Giulietta","MiTo","Stelvio","Tonale"],
+  "Audi": ["A1","A2","A3","A4","A5","A6","A7","A8","Q2","Q3","Q5","Q7","Q8","RS3","RS4","RS5","RS6","S3","S4","S5","S6","TT","e-tron"],
+  "BMW": ["Seria 1","Seria 2","Seria 3","Seria 4","Seria 5","Seria 6","Seria 7","Seria 8","X1","X2","X3","X4","X5","X6","X7","Z4","iX","i3","i4"],
+  "Chevrolet": ["Aveo","Captiva","Corvette","Cruze","Epica","Lacetti","Malibu","Niva","Orlando","Spark","Trax"],
+  "Chrysler": ["300C","Grand Voyager","Pacifica","PT Cruiser","Sebring","Voyager"],
+  "Citroen": ["Berlingo","C1","C2","C3","C3 Aircross","C4","C4 Cactus","C4 Picasso","C5","C5 Aircross","C6","C8","DS3","DS4","DS5","Jumper","Jumpy","Saxo","Xsara"],
+  "Dacia": ["Dokker","Duster","Jogger","Lodgy","Logan","Logan MCV","Sandero","Sandero Stepway","Spring","Solenza","SuperNova"],
+  "Daewoo": ["Cielo","Espero","Kalos","Lacetti","Lanos","Leganza","Matiz","Nexia","Nubira","Tacuma"],
+  "Fiat": ["124 Spider","500","500L","500X","Albea","Barchetta","Bravo","Brava","Croma","Doblo","Ducato","Freemont","Grande Punto","Idea","Linea","Marea","Multipla","Palio","Panda","Punto","Sedici","Stilo","Tempra","Tipo","Ulysse"],
+  "Ford": ["B-Max","C-Max","EcoSport","Edge","Explorer","F-150","Fiesta","Focus","Fusion","Galaxy","Ka","Kuga","Mondeo","Mustang","Puma","Ranger","S-Max","Tourneo","Transit"],
+  "Honda": ["Accord","City","Civic","CR-V","CR-Z","FR-V","HR-V","Jazz","Legend","NSX","Pilot","Stream"],
+  "Hyundai": ["Accent","Elantra","Getz","Grand Santa Fe","i10","i20","i30","i40","Ioniq","Ioniq 5","Ioniq 6","ix20","ix35","Kona","Matrix","Santa Fe","Sonata","Terracan","Tucson","Veloster"],
+  "Infiniti": ["EX","FX","G","M","Q30","Q50","Q60","Q70","QX30","QX50","QX70","QX80"],
+  "Jaguar": ["E-Pace","E-Type","F-Pace","F-Type","I-Pace","S-Type","X-Type","XE","XF","XJ","XK"],
+  "Jeep": ["Cherokee","Commander","Compass","Grand Cherokee","Patriot","Renegade","Wrangler"],
+  "Kia": ["Carens","Carnival","Ceed","EV6","Magentis","Niro","Optima","Picanto","Pro Ceed","Rio","Sorento","Soul","Sportage","Stinger","Stonic","Venga"],
+  "Lada": ["110","111","112","Granta","Kalina","Largus","Niva","Priora","Samara","Vesta","XRAY"],
+  "Land Rover": ["Defender","Discovery","Discovery Sport","Freelander","Range Rover","Range Rover Evoque","Range Rover Sport","Range Rover Velar"],
+  "Lexus": ["CT","ES","GS","GX","IS","LC","LS","LX","NX","RC","RX","UX"],
+  "Maserati": ["Ghibli","GranTurismo","Grecale","Levante","MC20","Quattroporte"],
+  "Mazda": ["2","3","5","6","626","CX-3","CX-30","CX-5","CX-60","CX-7","CX-9","MX-5","MX-30","RX-8"],
+  "Mercedes-Benz": ["A","B","C","CLA","CLS","E","EQA","EQB","EQC","EQE","EQS","G","GLA","GLB","GLC","GLE","GLK","GLS","ML","S","SL","SLK","Sprinter","V","Vito"],
+  "Mini": ["Cabrio","Clubman","Countryman","Coupe","Hatch","Paceman","Roadster"],
+  "Mitsubishi": ["ASX","Carisma","Colt","Eclipse Cross","Galant","L200","Lancer","Outlander","Pajero","Space Star"],
+  "Nissan": ["350Z","370Z","Almera","Ariya","Juke","Leaf","Micra","Murano","Navara","Note","Pathfinder","Pixo","Primera","Pulsar","Qashqai","Tiida","Townstar","X-Trail"],
+  "Opel": ["Adam","Agila","Ampera","Antara","Astra","Cascada","Combo","Corsa","Crossland","Frontera","Grandland","Insignia","Meriva","Mokka","Omega","Signum","Vectra","Vivaro","Zafira"],
+  "Peugeot": ["1007","107","108","2008","206","207","208","3008","301","306","307","308","4007","4008","406","407","408","5008","508","Expert","Partner","Rifter"],
+  "Porsche": ["718","911","Cayenne","Macan","Panamera","Taycan"],
+  "Renault": ["Arkana","Austral","Captur","Clio","Duster","Espace","Fluence","Kadjar","Kangoo","Koleos","Laguna","Latitude","Logan","Master","Megane","Modus","Scenic","Symbol","Talisman","Trafic","Twingo","Vel Satis","Zoe"],
+  "Seat": ["Arona","Arosa","Ateca","Cordoba","Exeo","Ibiza","Leon","Mii","Tarraco","Toledo"],
+  "Skoda": ["Citigo","Enyaq","Fabia","Kamiq","Karoq","Kodiaq","Octavia","Rapid","Roomster","Scala","Superb","Yeti"],
+  "Smart": ["EQ Fortwo","Forfour","Fortwo","Roadster"],
+  "Subaru": ["Forester","Impreza","Legacy","Levorg","Outback","Solterra","WRX","XV"],
+  "Suzuki": ["Alto","Baleno","Celerio","Grand Vitara","Ignis","Jimny","Liana","S-Cross","Splash","Swift","SX4","Vitara","Wagon R"],
+  "Tesla": ["Cybertruck","Model 3","Model S","Model X","Model Y","Roadster"],
+  "Toyota": ["Auris","Avensis","Aygo","bZ4X","Camry","Corolla","C-HR","GR86","GR Yaris","Hilux","Land Cruiser","Prius","Proace","RAV4","Supra","Verso","Yaris","Yaris Cross"],
+  "Volkswagen": ["Amarok","Arteon","Caddy","Caravelle","Crafter","Golf","ID.3","ID.4","ID.5","Jetta","Multivan","Passat","Phaeton","Polo","Scirocco","Sharan","T-Cross","T-Roc","Tiguan","Touareg","Touran","Transporter","Up"],
+  "Volvo": ["C30","C40","C70","S40","S60","S80","S90","V40","V50","V60","V70","V90","XC40","XC60","XC70","XC90"],
+};
+
+const MARCI = Object.keys(CAR_BRANDS).sort();
+const ANI = Array.from({length: 35}, (_,i) => new Date().getFullYear() - i);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function zilePanaLa(dateStr) {
@@ -60,12 +93,157 @@ function formatDate(d) {
 }
 const DOC_ICONS = { ITP: '🔧', RCA: '🛡️', CASCO: '🔒', Rovinieta: '🛣️', 'Permis auto': '📋', Altele: '📄' };
 
-// ─── Components ───────────────────────────────────────────────────────────────
+function saveData(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+function loadData(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch(e){ return def; } }
 
-function Avatar({ name }) {
+// ─── AUTH SCREENS ─────────────────────────────────────────────────────────────
+function AuthScreen({ onLogin }) {
+  const [mode, setMode] = useState('login'); // login | register
+  const [form, setForm] = useState({ nume: '', email: '', parola: '', confirma: '' });
+  const [err, setErr] = useState('');
+
+  function handleLogin() {
+    const users = loadData('ac_users', []);
+    const u = users.find(u => u.email === form.email.toLowerCase() && u.parola === form.parola);
+    if (!u) { setErr('Email sau parolă incorectă.'); return; }
+    saveData('ac_current', u.email);
+    onLogin(u);
+  }
+
+  function handleRegister() {
+    if (!form.nume || !form.email || !form.parola) { setErr('Completează toate câmpurile.'); return; }
+    if (form.parola !== form.confirma) { setErr('Parolele nu coincid.'); return; }
+    if (form.parola.length < 6) { setErr('Parola trebuie să aibă minim 6 caractere.'); return; }
+    const users = loadData('ac_users', []);
+    if (users.find(u => u.email === form.email.toLowerCase())) { setErr('Email-ul este deja înregistrat.'); return; }
+    const u = { id: Date.now(), nume: form.nume, email: form.email.toLowerCase(), parola: form.parola, telefon: '' };
+    saveData('ac_users', [...users, u]);
+    saveData('ac_current', u.email);
+    onLogin(u);
+  }
+
   return (
-    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-      {name ? name[0].toUpperCase() : 'U'}
+    <div className="app-container min-h-screen flex flex-col">
+      {/* Hero */}
+      <div className="bg-blue-600 px-6 pt-16 pb-12 text-white text-center">
+        <div className="text-5xl mb-3">🚗</div>
+        <h1 className="text-3xl font-bold">AutoCare</h1>
+        <p className="text-blue-200 mt-2 text-sm">Gestionează mașina ta cu ușurință</p>
+      </div>
+
+      {/* Form */}
+      <div className="flex-1 px-6 py-8">
+        {/* Tabs */}
+        <div className="flex bg-gray-100 rounded-2xl p-1 mb-6">
+          <button onClick={() => { setMode('login'); setErr(''); }} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${mode === 'login' ? 'bg-white text-blue-600 shadow' : 'text-gray-500'}`}>Autentificare</button>
+          <button onClick={() => { setMode('register'); setErr(''); }} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${mode === 'register' ? 'bg-white text-blue-600 shadow' : 'text-gray-500'}`}>Cont nou</button>
+        </div>
+
+        {err && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">{err}</div>}
+
+        <div className="space-y-3">
+          {mode === 'register' && (
+            <input value={form.nume} onChange={e => setForm({...form, nume: e.target.value})} placeholder="Nume complet" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+          )}
+          <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Adresă email" type="email" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+          <input value={form.parola} onChange={e => setForm({...form, parola: e.target.value})} placeholder="Parolă" type="password" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+          {mode === 'register' && (
+            <input value={form.confirma} onChange={e => setForm({...form, confirma: e.target.value})} placeholder="Confirmă parola" type="password" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+          )}
+        </div>
+
+        <button onClick={mode === 'login' ? handleLogin : handleRegister} className="mt-5 w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold text-sm shadow-lg shadow-blue-200">
+          {mode === 'login' ? 'Intră în cont' : 'Creează contul'}
+        </button>
+
+        {mode === 'login' && (
+          <p className="text-center text-xs text-gray-400 mt-4">
+            Nu ai cont? <button onClick={() => { setMode('register'); setErr(''); }} className="text-blue-600 font-medium">Înregistrează-te</button>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL ADAUGA MASINA ───────────────────────────────────────────────────────
+function ModalMasina({ onClose, onSave }) {
+  const [form, setForm] = useState({ marca: '', model: '', an: '', km: '', numar: '', culoare: '#3B82F6', combustibil: 'Benzina' });
+  const CULORI = ['#3B82F6','#EF4444','#10B981','#F59E0B','#8B5CF6','#EC4899','#1F2937','#FFFFFF'];
+  const COMBUSTIBIL = ['Benzina','Motorina','Hibrid','Hibrid plug-in','Electric','GPL','CNG'];
+  const modele = form.marca ? CAR_BRANDS[form.marca] || [] : [];
+
+  function salveaza() {
+    if (!form.marca || !form.model || !form.numar) return;
+    onSave({ id: Date.now(), ...form, an: parseInt(form.an) || new Date().getFullYear(), km: parseInt(form.km) || 0 });
+    onClose();
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-gray-800">Adaugă mașină</h2>
+          <button onClick={onClose} className="text-gray-400 text-xl w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+        <div className="space-y-3">
+          {/* Marca */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block font-medium">Marcă *</label>
+            <select value={form.marca} onChange={e => setForm({...form, marca: e.target.value, model: ''})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+              <option value="">Selectează marca</option>
+              {MARCI.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          {/* Model */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block font-medium">Model *</label>
+            <select value={form.model} onChange={e => setForm({...form, model: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white" disabled={!form.marca}>
+              <option value="">{form.marca ? 'Selectează modelul' : 'Alege mai întâi marca'}</option>
+              {modele.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          {/* An + Km */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block font-medium">An fabricație</label>
+              <select value={form.an} onChange={e => setForm({...form, an: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+                <option value="">An</option>
+                {ANI.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block font-medium">Kilometraj</label>
+              <input value={form.km} onChange={e => setForm({...form, km: e.target.value})} placeholder="ex: 85000" type="number" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            </div>
+          </div>
+          {/* Numar + Combustibil */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block font-medium">Nr. înmatriculare *</label>
+              <input value={form.numar} onChange={e => setForm({...form, numar: e.target.value.toUpperCase()})} placeholder="B 123 ABC" className="border border-gray-200 rounded-xl p-3 text-sm w-full" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block font-medium">Combustibil</label>
+              <select value={form.combustibil} onChange={e => setForm({...form, combustibil: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+                {COMBUSTIBIL.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          {/* Culoare */}
+          <div>
+            <label className="text-xs text-gray-500 mb-2 block font-medium">Culoare etichetă</label>
+            <div className="flex gap-2">
+              {CULORI.map(c => (
+                <button key={c} onClick={() => setForm({...form, culoare: c})} className="w-8 h-8 rounded-full border-2 transition-all" style={{background: c, borderColor: form.culoare === c ? '#2563EB' : '#E5E7EB'}} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <button onClick={salveaza} disabled={!form.marca || !form.model || !form.numar} className="mt-5 w-full bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white py-3.5 rounded-xl font-semibold text-sm">
+          Adaugă mașina
+        </button>
+      </div>
     </div>
   );
 }
@@ -77,37 +255,25 @@ function Dashboard({ cars, docs, services, user, onTab }) {
 
   return (
     <div className="content p-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6 pt-2">
         <div>
           <p className="text-sm text-gray-500">Bună ziua,</p>
-          <h1 className="text-xl font-bold text-gray-800">{user.nume || 'Utilizator'} 👋</h1>
+          <h1 className="text-xl font-bold text-gray-800">{user.nume} 👋</h1>
         </div>
-        <Avatar name={user.nume} />
+        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.nume[0].toUpperCase()}</div>
       </div>
 
-      {/* Sumar carduri */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="card p-3 text-center">
-          <div className="text-2xl font-bold text-blue-600">{cars.length}</div>
-          <div className="text-xs text-gray-500 mt-1">Mașini</div>
-        </div>
-        <div className="card p-3 text-center">
-          <div className="text-2xl font-bold text-red-500">{expirate.length}</div>
-          <div className="text-xs text-gray-500 mt-1">Expirate</div>
-        </div>
-        <div className="card p-3 text-center">
-          <div className="text-2xl font-bold text-yellow-500">{urgent.length - expirate.length}</div>
-          <div className="text-xs text-gray-500 mt-1">Urgente</div>
-        </div>
+        <div className="card p-3 text-center"><div className="text-2xl font-bold text-blue-600">{cars.length}</div><div className="text-xs text-gray-500 mt-1">Mașini</div></div>
+        <div className="card p-3 text-center"><div className="text-2xl font-bold text-red-500">{expirate.length}</div><div className="text-xs text-gray-500 mt-1">Expirate</div></div>
+        <div className="card p-3 text-center"><div className="text-2xl font-bold text-yellow-500">{Math.max(0, urgent.length - expirate.length)}</div><div className="text-xs text-gray-500 mt-1">Urgente</div></div>
       </div>
 
-      {/* Alerte */}
-      {(expirate.length > 0 || urgent.length > 0) && (
+      {urgent.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">⚠️ Necesită atenție</h2>
           <div className="space-y-2">
-            {docs.filter(d => zilePanaLa(d.expira) <= 30).sort((a,b) => zilePanaLa(a.expira) - zilePanaLa(b.expira)).map(doc => {
+            {[...docs].filter(d => zilePanaLa(d.expira) <= 30).sort((a,b) => zilePanaLa(a.expira) - zilePanaLa(b.expira)).map(doc => {
               const car = cars.find(c => c.id === doc.carId);
               const st = statusDoc(doc.expira);
               return (
@@ -125,7 +291,6 @@ function Dashboard({ cars, docs, services, user, onTab }) {
         </div>
       )}
 
-      {/* Masini rapide */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">🚗 Mașinile mele</h2>
@@ -135,17 +300,16 @@ function Dashboard({ cars, docs, services, user, onTab }) {
           <div className="card p-6 text-center text-gray-400">
             <div className="text-3xl mb-2">🚗</div>
             <p className="text-sm">Nu ai adăugat nicio mașină</p>
-            <button onClick={() => onTab('masini')} className="mt-3 text-blue-600 text-sm font-medium">Adaugă acum</button>
+            <button onClick={() => onTab('masini')} className="mt-3 text-blue-600 text-sm font-medium">Adaugă acum →</button>
           </div>
         ) : cars.map(car => {
-          const carDocs = docs.filter(d => d.carId === car.id);
-          const nearExp = carDocs.filter(d => zilePanaLa(d.expira) <= 30).length;
+          const nearExp = docs.filter(d => d.carId === car.id && zilePanaLa(d.expira) <= 30).length;
           return (
             <div key={car.id} className="card p-4 mb-2 flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{background: car.culoare + '20'}}>🚗</div>
               <div className="flex-1">
-                <div className="font-bold text-gray-800">{car.marca} {car.model} <span className="text-gray-400 font-normal">· {car.an}</span></div>
-                <div className="text-sm text-gray-500">{car.numar}</div>
+                <div className="font-bold text-gray-800">{car.marca} {car.model} <span className="text-gray-400 font-normal text-sm">· {car.an}</span></div>
+                <div className="text-sm text-gray-500">{car.numar} · {car.combustibil}</div>
               </div>
               {nearExp > 0 && <span className="badge-yellow text-xs font-semibold px-2 py-1 rounded-full">{nearExp} doc.</span>}
             </div>
@@ -153,17 +317,14 @@ function Dashboard({ cars, docs, services, user, onTab }) {
         })}
       </div>
 
-      {/* Ultimele servicii */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">🔩 Ultimele service-uri</h2>
           <button onClick={() => onTab('servicii')} className="text-xs text-blue-600 font-medium">Vezi toate</button>
         </div>
         {services.length === 0 ? (
-          <div className="card p-6 text-center text-gray-400">
-            <p className="text-sm">Niciun service înregistrat</p>
-          </div>
-        ) : services.slice(0,3).map(s => {
+          <div className="card p-4 text-center text-gray-400 text-sm">Niciun service înregistrat</div>
+        ) : [...services].sort((a,b) => new Date(b.data)-new Date(a.data)).slice(0,3).map(s => {
           const car = cars.find(c => c.id === s.carId);
           return (
             <div key={s.id} className="card p-3 mb-2 flex items-center gap-3">
@@ -172,7 +333,7 @@ function Dashboard({ cars, docs, services, user, onTab }) {
                 <div className="font-medium text-gray-800 text-sm">{s.descriere}</div>
                 <div className="text-xs text-gray-500">{car?.marca} {car?.model} · {formatDate(s.data)}</div>
               </div>
-              <div className="text-sm font-semibold text-gray-700">{s.cost} lei</div>
+              {s.cost > 0 && <div className="text-sm font-semibold text-gray-700">{s.cost} lei</div>}
             </div>
           );
         })}
@@ -185,16 +346,7 @@ function Dashboard({ cars, docs, services, user, onTab }) {
 function Masini({ cars, setCars, docs, setDocs }) {
   const [modal, setModal] = useState(false);
   const [detaliu, setDetaliu] = useState(null);
-  const [form, setForm] = useState({ marca: '', model: '', an: '', numar: '', culoare: '#3B82F6' });
-  const CULORI = ['#3B82F6','#EF4444','#10B981','#F59E0B','#8B5CF6','#EC4899','#6B7280'];
 
-  function adaugaMasina() {
-    if (!form.marca || !form.model || !form.numar) return;
-    const nou = { id: Date.now(), ...form, an: parseInt(form.an) || new Date().getFullYear() };
-    setCars([...cars, nou]);
-    setForm({ marca:'', model:'', an:'', numar:'', culoare:'#3B82F6' });
-    setModal(false);
-  }
   function stergeMasina(id) {
     setCars(cars.filter(c => c.id !== id));
     setDocs(docs.filter(d => d.carId !== id));
@@ -211,62 +363,35 @@ function Masini({ cars, setCars, docs, setDocs }) {
       {cars.length === 0 ? (
         <div className="card p-10 text-center text-gray-400">
           <div className="text-5xl mb-3">🚗</div>
-          <p>Nu ai adăugat nicio mașină</p>
-          <button onClick={() => setModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă prima mașină</button>
+          <p className="mb-4">Nu ai adăugat nicio mașină</p>
+          <button onClick={() => setModal(true)} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă prima mașină</button>
         </div>
       ) : cars.map(car => {
         const carDocs = docs.filter(d => d.carId === car.id);
         const exp = carDocs.filter(d => zilePanaLa(d.expira) < 0).length;
         const urg = carDocs.filter(d => zilePanaLa(d.expira) >= 0 && zilePanaLa(d.expira) <= 30).length;
         return (
-          <div key={car.id} className="card p-4 mb-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDetaliu(car)}>
+          <div key={car.id} className="card p-4 mb-3 cursor-pointer" onClick={() => setDetaliu(car)}>
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{background: car.culoare + '20'}}>🚗</div>
               <div className="flex-1">
-                <div className="font-bold text-gray-800 text-lg">{car.marca} {car.model}</div>
+                <div className="font-bold text-gray-800 text-base">{car.marca} {car.model}</div>
                 <div className="text-sm text-gray-500">{car.numar} · {car.an}</div>
-                <div className="flex gap-2 mt-1">
+                <div className="text-xs text-gray-400">{car.combustibil} · {car.km?.toLocaleString()} km</div>
+                <div className="flex gap-2 mt-1.5">
                   {exp > 0 && <span className="badge-red text-xs px-2 py-0.5 rounded-full font-medium">{exp} expirate</span>}
                   {urg > 0 && <span className="badge-yellow text-xs px-2 py-0.5 rounded-full font-medium">{urg} urgente</span>}
-                  {exp === 0 && urg === 0 && <span className="badge-green text-xs px-2 py-0.5 rounded-full font-medium">✓ OK</span>}
+                  {exp === 0 && urg === 0 && <span className="badge-green text-xs px-2 py-0.5 rounded-full font-medium">✓ Totul OK</span>}
                 </div>
               </div>
-              <div className="text-gray-400 text-xl">›</div>
+              <div className="text-gray-300 text-2xl">›</div>
             </div>
           </div>
         );
       })}
 
-      {/* Modal adauga masina */}
-      {modal && (
-        <div className="modal-overlay" onClick={() => setModal(false)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-800">Adaugă mașină</h2>
-              <button onClick={() => setModal(false)} className="text-gray-400 text-xl">✕</button>
-            </div>
-            <div className="space-y-3">
-              <input value={form.marca} onChange={e => setForm({...form, marca: e.target.value})} placeholder="Marca (ex: Dacia)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
-              <input value={form.model} onChange={e => setForm({...form, model: e.target.value})} placeholder="Model (ex: Logan)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
-              <div className="grid grid-cols-2 gap-3">
-                <input value={form.an} onChange={e => setForm({...form, an: e.target.value})} placeholder="An fabricație" type="number" className="border border-gray-200 rounded-xl p-3 text-sm" />
-                <input value={form.numar} onChange={e => setForm({...form, numar: e.target.value.toUpperCase()})} placeholder="Nr. înmatriculare" className="border border-gray-200 rounded-xl p-3 text-sm" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-2">Culoare</p>
-                <div className="flex gap-2">
-                  {CULORI.map(c => (
-                    <button key={c} onClick={() => setForm({...form, culoare: c})} className="w-8 h-8 rounded-full border-2 transition-all" style={{background: c, borderColor: form.culoare === c ? '#1e3a5f' : 'transparent'}} />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <button onClick={adaugaMasina} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă mașina</button>
-          </div>
-        </div>
-      )}
+      {modal && <ModalMasina onClose={() => setModal(false)} onSave={car => setCars([...cars, car])} />}
 
-      {/* Detaliu masina */}
       {detaliu && (
         <div className="modal-overlay" onClick={() => setDetaliu(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
@@ -274,9 +399,11 @@ function Masini({ cars, setCars, docs, setDocs }) {
               <h2 className="text-lg font-bold text-gray-800">{detaliu.marca} {detaliu.model}</h2>
               <button onClick={() => setDetaliu(null)} className="text-gray-400 text-xl">✕</button>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-500">Număr</span><span className="font-medium">{detaliu.numar}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-500">An fabricație</span><span className="font-medium">{detaliu.an}</span></div>
+            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Număr</span><span className="font-medium">{detaliu.numar}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">An fabricație</span><span className="font-medium">{detaliu.an}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Kilometraj</span><span className="font-medium">{detaliu.km?.toLocaleString()} km</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Combustibil</span><span className="font-medium">{detaliu.combustibil}</span></div>
             </div>
             <h3 className="text-sm font-semibold text-gray-600 mb-2">Documente</h3>
             {docs.filter(d => d.carId === detaliu.id).length === 0
@@ -305,14 +432,12 @@ function Documente({ docs, setDocs, cars }) {
   const [form, setForm] = useState({ carId: '', tip: 'ITP', expira: '', emis: '', nota: '' });
   const TIPURI = ['ITP','RCA','CASCO','Rovinieta','Permis auto','Altele'];
 
-  function adaugaDoc() {
+  function adauga() {
     if (!form.carId || !form.expira) return;
-    const nou = { id: Date.now(), ...form, carId: parseInt(form.carId) };
-    setDocs([...docs, nou]);
+    setDocs([...docs, { id: Date.now(), ...form, carId: parseInt(form.carId) }]);
     setForm({ carId:'', tip:'ITP', expira:'', emis:'', nota:'' });
     setModal(false);
   }
-  function stergeDoc(id) { setDocs(docs.filter(d => d.id !== id)); }
 
   const sorted = [...docs].sort((a,b) => zilePanaLa(a.expira) - zilePanaLa(b.expira));
 
@@ -320,20 +445,16 @@ function Documente({ docs, setDocs, cars }) {
     <div className="content p-4">
       <div className="flex items-center justify-between mb-6 pt-2">
         <h1 className="text-xl font-bold text-gray-800">📄 Documente</h1>
-        <button onClick={() => setModal(true)} className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl" disabled={cars.length === 0}>+ Adaugă</button>
+        <button onClick={() => setModal(true)} disabled={cars.length === 0} className="bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Adaugă</button>
       </div>
 
-      {cars.length === 0 && (
-        <div className="card p-6 text-center text-gray-400 mb-4">
-          <p className="text-sm">Adaugă mai întâi o mașină pentru a gestiona documente.</p>
-        </div>
-      )}
+      {cars.length === 0 && <div className="card p-6 text-center text-gray-400 text-sm mb-4">Adaugă mai întâi o mașină.</div>}
 
       {sorted.length === 0 && cars.length > 0 ? (
         <div className="card p-10 text-center text-gray-400">
           <div className="text-5xl mb-3">📄</div>
-          <p>Nu ai adăugat niciun document</p>
-          <button onClick={() => setModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă document</button>
+          <p className="mb-4">Nu ai adăugat niciun document</p>
+          <button onClick={() => setModal(true)} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă document</button>
         </div>
       ) : sorted.map(doc => {
         const car = cars.find(c => c.id === doc.carId);
@@ -349,7 +470,7 @@ function Documente({ docs, setDocs, cars }) {
               </div>
               <div className="flex flex-col items-end gap-2">
                 <span className={`text-xs font-semibold px-2 py-1 rounded-full ${st.cls}`}>{st.label}</span>
-                <button onClick={() => stergeDoc(doc.id)} className="text-xs text-red-400">🗑️</button>
+                <button onClick={() => setDocs(docs.filter(d => d.id !== doc.id))} className="text-xs text-red-400">🗑️</button>
               </div>
             </div>
           </div>
@@ -364,24 +485,30 @@ function Documente({ docs, setDocs, cars }) {
               <button onClick={() => setModal(false)} className="text-gray-400 text-xl">✕</button>
             </div>
             <div className="space-y-3">
-              <select value={form.carId} onChange={e => setForm({...form, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm">
-                <option value="">Selectează mașina</option>
-                {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
-              </select>
-              <select value={form.tip} onChange={e => setForm({...form, tip: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm">
-                {TIPURI.map(t => <option key={t} value={t}>{DOC_ICONS[t]} {t}</option>)}
-              </select>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Data emiterii</label>
+                <label className="text-xs text-gray-500 mb-1 block font-medium">Mașina *</label>
+                <select value={form.carId} onChange={e => setForm({...form, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+                  <option value="">Selectează mașina</option>
+                  {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block font-medium">Tip document *</label>
+                <select value={form.tip} onChange={e => setForm({...form, tip: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+                  {TIPURI.map(t => <option key={t} value={t}>{DOC_ICONS[t]} {t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block font-medium">Data emiterii</label>
                 <input type="date" value={form.emis} onChange={e => setForm({...form, emis: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Data expirării *</label>
+                <label className="text-xs text-gray-500 mb-1 block font-medium">Data expirării *</label>
                 <input type="date" value={form.expira} onChange={e => setForm({...form, expira: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
               </div>
-              <input value={form.nota} onChange={e => setForm({...form, nota: e.target.value})} placeholder="Notă (ex: Allianz, asigurător...)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              <input value={form.nota} onChange={e => setForm({...form, nota: e.target.value})} placeholder="Notă (ex: asigurător, nr. poliță...)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
             </div>
-            <button onClick={adaugaDoc} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă documentul</button>
+            <button onClick={adauga} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă documentul</button>
           </div>
         </div>
       )}
@@ -392,16 +519,15 @@ function Documente({ docs, setDocs, cars }) {
 // ── Servicii ──────────────────────────────────────────────────────────────────
 function Servicii({ services, setServices, cars }) {
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ carId: '', data: '', descriere: '', km: '', cost: '', nota: '' });
+  const [detaliu, setDetaliu] = useState(null);
+  const [form, setForm] = useState({ carId: '', data: '', descriere: '', km: '', cost: '', nota: '', piese: '' });
 
-  function adaugaService() {
+  function adauga() {
     if (!form.carId || !form.descriere || !form.data) return;
-    const nou = { id: Date.now(), ...form, carId: parseInt(form.carId), km: parseInt(form.km)||0, cost: parseFloat(form.cost)||0 };
-    setServices([...services, nou]);
-    setForm({ carId:'', data:'', descriere:'', km:'', cost:'', nota:'' });
+    setServices([...services, { id: Date.now(), ...form, carId: parseInt(form.carId), km: parseInt(form.km)||0, cost: parseFloat(form.cost)||0 }]);
+    setForm({ carId:'', data:'', descriere:'', km:'', cost:'', nota:'', piese:'' });
     setModal(false);
   }
-  function stergeService(id) { setServices(services.filter(s => s.id !== id)); }
 
   const sorted = [...services].sort((a,b) => new Date(b.data) - new Date(a.data));
 
@@ -409,94 +535,251 @@ function Servicii({ services, setServices, cars }) {
     <div className="content p-4">
       <div className="flex items-center justify-between mb-6 pt-2">
         <h1 className="text-xl font-bold text-gray-800">🔩 Service</h1>
-        <button onClick={() => setModal(true)} className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl" disabled={cars.length === 0}>+ Adaugă</button>
+        <button onClick={() => setModal(true)} disabled={cars.length === 0} className="bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Adaugă</button>
       </div>
 
       {sorted.length === 0 ? (
         <div className="card p-10 text-center text-gray-400">
           <div className="text-5xl mb-3">🔩</div>
-          <p>Niciun service înregistrat</p>
-          {cars.length > 0 && <button onClick={() => setModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă service</button>}
+          <p className="mb-4">Niciun service înregistrat</p>
+          {cars.length > 0 && <button onClick={() => setModal(true)} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă service</button>}
         </div>
       ) : sorted.map(s => {
         const car = cars.find(c => c.id === s.carId);
         return (
-          <div key={s.id} className="card p-4 mb-3">
-            <div className="flex items-start gap-3">
-              <div className="text-2xl mt-0.5">🔩</div>
+          <div key={s.id} className="card p-4 mb-3 cursor-pointer active:opacity-80" onClick={() => setDetaliu(s)}>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-2xl">🔩</div>
               <div className="flex-1">
                 <div className="font-bold text-gray-800">{s.descriere}</div>
                 <div className="text-xs text-gray-500 mt-0.5">{car?.marca} {car?.model} · {formatDate(s.data)}</div>
                 {s.km > 0 && <div className="text-xs text-gray-400">{s.km.toLocaleString()} km</div>}
-                {s.nota && <div className="text-xs text-gray-400 mt-1">📝 {s.nota}</div>}
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col items-end gap-1">
                 {s.cost > 0 && <div className="font-semibold text-gray-700 text-sm">{s.cost} lei</div>}
-                <button onClick={() => stergeService(s.id)} className="text-xs text-red-400">🗑️</button>
+                <div className="text-gray-300 text-lg">›</div>
               </div>
             </div>
           </div>
         );
       })}
 
-      {modal && (
-        <div className="modal-overlay" onClick={() => setModal(false)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-800">Adaugă service</h2>
-              <button onClick={() => setModal(false)} className="text-gray-400 text-xl">✕</button>
-            </div>
-            <div className="space-y-3">
-              <select value={form.carId} onChange={e => setForm({...form, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm">
-                <option value="">Selectează mașina</option>
-                {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
-              </select>
-              <input value={form.descriere} onChange={e => setForm({...form, descriere: e.target.value})} placeholder="Descriere (ex: Schimb ulei)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Data service</label>
-                <input type="date" value={form.data} onChange={e => setForm({...form, data: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+      {/* Modal detaliu lucrare */}
+      {detaliu && (() => {
+        const car = cars.find(c => c.id === detaliu.carId);
+        return (
+          <div className="modal-overlay" onClick={() => setDetaliu(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold text-gray-800">Detalii service</h2>
+                <button onClick={() => setDetaliu(null)} className="text-gray-400 text-xl w-8 h-8 flex items-center justify-center">✕</button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input value={form.km} onChange={e => setForm({...form, km: e.target.value})} placeholder="Kilometraj" type="number" className="border border-gray-200 rounded-xl p-3 text-sm" />
-                <input value={form.cost} onChange={e => setForm({...form, cost: e.target.value})} placeholder="Cost (lei)" type="number" className="border border-gray-200 rounded-xl p-3 text-sm" />
+
+              {/* Header lucrare */}
+              <div className="bg-orange-50 rounded-2xl p-4 mb-4 flex items-center gap-3">
+                <div className="text-3xl">🔩</div>
+                <div>
+                  <div className="font-bold text-gray-800 text-base">{detaliu.descriere}</div>
+                  <div className="text-sm text-gray-500">{car?.marca} {car?.model} · {car?.numar}</div>
+                </div>
               </div>
-              <input value={form.nota} onChange={e => setForm({...form, nota: e.target.value})} placeholder="Notă opțională" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+
+              {/* Grid detalii */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">📅 Data</div>
+                  <div className="font-semibold text-gray-800 text-sm">{formatDate(detaliu.data)}</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">🛣️ Kilometraj</div>
+                  <div className="font-semibold text-gray-800 text-sm">{detaliu.km > 0 ? `${detaliu.km.toLocaleString()} km` : '—'}</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">💰 Cost total</div>
+                  <div className="font-semibold text-green-600 text-sm">{detaliu.cost > 0 ? `${detaliu.cost} lei` : '—'}</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">🚗 Mașina</div>
+                  <div className="font-semibold text-gray-800 text-sm">{car?.marca} {car?.model}</div>
+                </div>
+              </div>
+
+              {/* Lucrari bifate */}
+              {detaliu.piese && (
+                <div className="bg-blue-50 rounded-xl p-4 mb-3">
+                  <div className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wide">✅ Lucrări efectuate</div>
+                  <div className="space-y-1.5">
+                    {detaliu.piese.split(',').map((p,i) => p.trim() && (
+                      <div key={i} className="flex items-center gap-2 text-sm text-blue-800">
+                        <div className="w-4 h-4 rounded bg-blue-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                        {p.trim()}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Alte lucrari */}
+              {detaliu.altele && (
+                <div className="bg-orange-50 rounded-xl p-4 mb-3">
+                  <div className="text-xs font-semibold text-orange-600 mb-2 uppercase tracking-wide">🔧 Alte lucrări</div>
+                  <div className="text-sm text-gray-700">{detaliu.altele}</div>
+                </div>
+              )}
+
+              {/* Nota */}
+              {detaliu.nota && (
+                <div className="bg-yellow-50 rounded-xl p-4 mb-4">
+                  <div className="text-xs font-semibold text-yellow-600 mb-2 uppercase tracking-wide">📝 Notă</div>
+                  <div className="text-sm text-gray-700">{detaliu.nota}</div>
+                </div>
+              )}
+
+              <button onClick={() => { setServices(services.filter(x => x.id !== detaliu.id)); setDetaliu(null); }}
+                className="w-full border border-red-300 text-red-500 py-2.5 rounded-xl text-sm font-medium">
+                Șterge lucrarea
+              </button>
             </div>
-            <button onClick={adaugaService} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă service</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Modal adauga */}
+      {modal && (() => {
+        const REVIZII = [
+          { cat: '🛢️ Ulei & Filtre', items: ['Schimb ulei motor','Filtru ulei','Filtru aer','Filtru habitaclu / polen','Filtru combustibil'] },
+          { cat: '🛑 Frâne', items: ['Plăcuțe față','Plăcuțe spate','Discuri față','Discuri spate','Lichid frână'] },
+          { cat: '⚙️ Distribuție', items: ['Curea distribuție','Rolă distribuție','Pompă apă','Curea accesorii'] },
+          { cat: '🔋 Altele', items: ['Bujii','Baterie','Lichid răcire','Lichid direcție','Amortizoare față','Amortizoare spate','Anvelope față','Anvelope spate'] },
+        ];
+        const bifate = form.bifate || [];
+        function toggleBifa(item) {
+          const nou = bifate.includes(item) ? bifate.filter(x => x !== item) : [...bifate, item];
+          setForm({...form, bifate: nou, descriere: nou.length > 0 ? nou.join(', ') : form.descriere});
+        }
+        return (
+          <div className="modal-overlay" onClick={() => setModal(false)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold text-gray-800">Adaugă service</h2>
+                <button onClick={() => setModal(false)} className="text-gray-400 text-xl w-8 h-8 flex items-center justify-center">✕</button>
+              </div>
+              <div className="space-y-4">
+
+                {/* Masina + Data + Km + Cost */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block font-medium">Mașina *</label>
+                  <select value={form.carId} onChange={e => setForm({...form, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+                    <option value="">Selectează mașina</option>
+                    {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block font-medium">Data service *</label>
+                  <input type="date" value={form.data} onChange={e => setForm({...form, data: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block font-medium">Kilometraj</label>
+                    <input value={form.km} onChange={e => setForm({...form, km: e.target.value})} placeholder="ex: 85000" type="number" className="border border-gray-200 rounded-xl p-3 text-sm w-full" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block font-medium">Cost total (lei)</label>
+                    <input value={form.cost} onChange={e => setForm({...form, cost: e.target.value})} placeholder="ex: 450" type="number" className="border border-gray-200 rounded-xl p-3 text-sm w-full" />
+                  </div>
+                </div>
+
+                {/* Checklist revizii */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-2 block font-medium uppercase tracking-wide">✅ Lucrări efectuate</label>
+                  {REVIZII.map(sectiune => (
+                    <div key={sectiune.cat} className="mb-3">
+                      <div className="text-xs font-semibold text-gray-500 mb-1.5">{sectiune.cat}</div>
+                      <div className="bg-gray-50 rounded-xl overflow-hidden">
+                        {sectiune.items.map((item, i) => (
+                          <button key={item} onClick={() => toggleBifa(item)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${i > 0 ? 'border-t border-gray-100' : ''} ${bifate.includes(item) ? 'bg-blue-50' : ''}`}>
+                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${bifate.includes(item) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                              {bifate.includes(item) && <span className="text-white text-xs font-bold">✓</span>}
+                            </div>
+                            <span className={bifate.includes(item) ? 'text-blue-700 font-medium' : 'text-gray-700'}>{item}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Alte lucrari */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block font-medium">📝 Alte lucrări (opțional)</label>
+                  <textarea value={form.altele||''} onChange={e => setForm({...form, altele: e.target.value})} placeholder="ex: Reglaj geometrie, Schimb brat directie..." rows={3} className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none" />
+                </div>
+
+                {/* Nota */}
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block font-medium">Notă</label>
+                  <input value={form.nota} onChange={e => setForm({...form, nota: e.target.value})} placeholder="ex: Service Dacia Cluj, garantie 6 luni" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                </div>
+
+                {/* Sumar bifate */}
+                {bifate.length > 0 && (
+                  <div className="bg-blue-50 rounded-xl p-3">
+                    <div className="text-xs font-semibold text-blue-600 mb-1">{bifate.length} lucrări selectate:</div>
+                    <div className="text-xs text-blue-700">{bifate.join(' · ')}</div>
+                  </div>
+                )}
+              </div>
+
+              <button onClick={() => {
+                if (!form.carId || !form.data) return;
+                const desc = [...(form.bifate||[]), ...(form.altele ? [form.altele] : [])].join(', ') || 'Service general';
+                setServices([...services, { id: Date.now(), carId: parseInt(form.carId), data: form.data, descriere: desc, km: parseInt(form.km)||0, cost: parseFloat(form.cost)||0, piese: (form.bifate||[]).join(', '), altele: form.altele||'', nota: form.nota||'' }]);
+                setForm({ carId:'', data:'', descriere:'', km:'', cost:'', nota:'', piese:'', bifate:[], altele:'' });
+                setModal(false);
+              }} disabled={!form.carId || !form.data} className="mt-5 w-full bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white py-3.5 rounded-xl font-semibold text-sm">
+                Salvează service
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ── Profil ────────────────────────────────────────────────────────────────────
-function Profil({ user, setUser }) {
+function Profil({ user, setUser, onLogout }) {
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState(user);
 
-  function salveaza() { setUser(form); setEdit(false); }
+  function salveaza() {
+    const users = loadData('ac_users', []);
+    const updated = users.map(u => u.email === user.email ? {...u, ...form} : u);
+    saveData('ac_users', updated);
+    setUser({...user, ...form});
+    setEdit(false);
+  }
 
   return (
     <div className="content p-4">
-      <div className="pt-2 mb-6">
-        <h1 className="text-xl font-bold text-gray-800">👤 Profilul meu</h1>
-      </div>
+      <div className="pt-2 mb-6"><h1 className="text-xl font-bold text-gray-800">👤 Profilul meu</h1></div>
 
       <div className="card p-6 mb-4 text-center">
         <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-3">
-          {user.nume ? user.nume[0].toUpperCase() : 'U'}
+          {user.nume[0].toUpperCase()}
         </div>
-        <div className="font-bold text-gray-800 text-lg">{user.nume || 'Utilizator'}</div>
-        <div className="text-sm text-gray-500">{user.email || 'email@exemplu.ro'}</div>
+        <div className="font-bold text-gray-800 text-lg">{user.nume}</div>
+        <div className="text-sm text-gray-500">{user.email}</div>
       </div>
 
       {edit ? (
         <div className="card p-4 mb-4">
           <div className="space-y-3">
             <input value={form.nume} onChange={e => setForm({...form, nume: e.target.value})} placeholder="Nume complet" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
-            <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" type="email" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
-            <input value={form.telefon} onChange={e => setForm({...form, telefon: e.target.value})} placeholder="Telefon" type="tel" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            <input value={form.telefon||''} onChange={e => setForm({...form, telefon: e.target.value})} placeholder="Telefon" type="tel" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
           </div>
           <div className="flex gap-3 mt-4">
             <button onClick={() => setEdit(false)} className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-medium text-gray-600">Anulează</button>
@@ -504,39 +787,56 @@ function Profil({ user, setUser }) {
           </div>
         </div>
       ) : (
-        <div className="card p-4 mb-4 space-y-3">
-          <div className="flex justify-between text-sm"><span className="text-gray-500">Nume</span><span className="font-medium text-gray-800">{user.nume || '—'}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-gray-500">Email</span><span className="font-medium text-gray-800">{user.email || '—'}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-gray-500">Telefon</span><span className="font-medium text-gray-800">{user.telefon || '—'}</span></div>
-          <button onClick={() => { setForm(user); setEdit(true); }} className="w-full border border-blue-600 text-blue-600 py-2.5 rounded-xl text-sm font-semibold mt-2">Editează profilul</button>
+        <div className="card p-4 mb-4">
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between"><span className="text-gray-500">Nume</span><span className="font-medium">{user.nume}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Email</span><span className="font-medium">{user.email}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Telefon</span><span className="font-medium">{user.telefon || '—'}</span></div>
+          </div>
+          <button onClick={() => { setForm(user); setEdit(true); }} className="w-full border border-blue-600 text-blue-600 py-2.5 rounded-xl text-sm font-semibold mt-4">Editează profilul</button>
         </div>
       )}
 
-      <div className="card p-4 space-y-1">
-        <div className="text-sm font-semibold text-gray-600 mb-2">Setări notificări</div>
-        {[['30 zile înainte', true],['7 zile înainte', true],['1 zi înainte', false]].map(([label, def]) => {
-          const [on, setOn] = useState(def);
-          return (
-            <div key={label} className="flex justify-between items-center py-2">
-              <span className="text-sm text-gray-700">{label}</span>
-              <button onClick={() => setOn(!on)} className={`w-12 h-6 rounded-full transition-colors ${on ? 'bg-blue-600' : 'bg-gray-200'} relative`}>
-                <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${on ? 'left-6' : 'left-0.5'}`} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      <button onClick={onLogout} className="w-full border border-red-300 text-red-500 py-3 rounded-xl text-sm font-semibold">Deconectare</button>
     </div>
   );
 }
 
 // ── App principal ─────────────────────────────────────────────────────────────
 function App() {
+  const [user, setUser] = useState(null);
   const [tab, setTab] = useState('dashboard');
-  const [cars, setCars] = useState(initialCars);
-  const [docs, setDocs] = useState(initialDocs);
-  const [services, setServices] = useState(initialServices);
-  const [user, setUser] = useState({ nume: 'Denis', email: 'plopdenis@gmail.com', telefon: '' });
+  const [cars, setCars] = useState([]);
+  const [docs, setDocs] = useState([]);
+  const [services, setServices] = useState([]);
+
+  useEffect(() => {
+    const email = loadData('ac_current', null);
+    if (email) {
+      const users = loadData('ac_users', []);
+      const u = users.find(u => u.email === email);
+      if (u) login(u);
+    }
+  }, []);
+
+  function login(u) {
+    setUser(u);
+    setCars(loadData(`ac_cars_${u.email}`, []));
+    setDocs(loadData(`ac_docs_${u.email}`, []));
+    setServices(loadData(`ac_svc_${u.email}`, []));
+  }
+
+  function logout() {
+    saveData('ac_current', null);
+    setUser(null); setCars([]); setDocs([]); setServices([]);
+    setTab('dashboard');
+  }
+
+  useEffect(() => { if (user) saveData(`ac_cars_${user.email}`, cars); }, [cars]);
+  useEffect(() => { if (user) saveData(`ac_docs_${user.email}`, docs); }, [docs]);
+  useEffect(() => { if (user) saveData(`ac_svc_${user.email}`, services); }, [services]);
+
+  if (!user) return <AuthScreen onLogin={login} />;
 
   const tabs = [
     { id: 'dashboard', label: 'Acasă', icon: '🏠' },
@@ -548,12 +848,12 @@ function App() {
 
   return (
     <div className="app-container">
-      <div className="content" style={{paddingBottom: 80}}>
+      <div style={{paddingBottom: 80}}>
         {tab === 'dashboard' && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
         {tab === 'masini'    && <Masini cars={cars} setCars={setCars} docs={docs} setDocs={setDocs} />}
         {tab === 'documente' && <Documente docs={docs} setDocs={setDocs} cars={cars} />}
         {tab === 'servicii'  && <Servicii services={services} setServices={setServices} cars={cars} />}
-        {tab === 'profil'    && <Profil user={user} setUser={setUser} />}
+        {tab === 'profil'    && <Profil user={user} setUser={setUser} onLogout={logout} />}
       </div>
       <nav className="bottom-nav">
         <div className="flex">
