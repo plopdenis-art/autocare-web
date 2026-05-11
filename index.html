@@ -22,6 +22,24 @@
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
     .modal-box { background: white; border-radius: 24px 24px 0 0; padding: 24px; width: 100%; max-width: 430px; max-height: 90vh; overflow-y: auto; }
     select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px !important; }
+    /* Dark mode */
+    body.dark { background: #111827; }
+    body.dark .app-container { background: #1f2937; }
+    body.dark .card { background: #374151 !important; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    body.dark .bottom-nav { background: #1f2937; border-top-color: #374151; }
+    body.dark .modal-box { background: #1f2937; }
+    body.dark .bg-white { background: #1f2937 !important; }
+    body.dark .bg-gray-50 { background: #2d3748 !important; }
+    body.dark .bg-gray-100 { background: #374151 !important; }
+    body.dark .text-gray-800 { color: #f3f4f6 !important; }
+    body.dark .text-gray-700 { color: #e5e7eb !important; }
+    body.dark .text-gray-600 { color: #d1d5db !important; }
+    body.dark .text-gray-500 { color: #9ca3af !important; }
+    body.dark .text-gray-400 { color: #6b7280 !important; }
+    body.dark .border-gray-200 { border-color: #4b5563 !important; }
+    body.dark .border-gray-100 { border-color: #374151 !important; }
+    body.dark input, body.dark select, body.dark textarea { background: #374151 !important; border-color: #4b5563 !important; color: #f3f4f6 !important; }
+    body.dark input::placeholder, body.dark textarea::placeholder { color: #6b7280 !important; }
   </style>
 </head>
 <body>
@@ -322,10 +340,10 @@ function Dashboard({ cars, docs, services, user, onTab }) {
         <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">🔍 Verificări rapide</h2>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { icon:'🔧', label:'Verificare ITP', sub:'itp.ro', url:'https://www.itp.ro/verificare' },
-            { icon:'🛡️', label:'Verificare RCA', sub:'asfromania.ro', url:'https://www.asfromania.ro/consumatori/verificare-rca' },
-            { icon:'🛣️', label:'Rovinieta', sub:'roviniete.ro', url:'https://www.roviniete.ro/ro/verificare' },
-            { icon:'📋', label:'Amenzi rutiere', sub:'ghiseul.ro', url:'https://www.ghiseul.ro' },
+            { icon:'🔧', label:'Verificare ITP', sub:'registrulautoverificat.ro', url:'https://www.registrulautoverificat.ro/' },
+            { icon:'🛡️', label:'Verificare RCA', sub:'asfromania.ro', url:'https://www.asfromania.ro/' },
+            { icon:'🛣️', label:'Rovinieta', sub:'erovinieta.ro', url:'https://www.erovinieta.ro/' },
+            { icon:'📋', label:'Amenzi rutiere', sub:'ghiseul.ro', url:'https://www.ghiseul.ro/' },
           ].map(item => (
             <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="card p-3 flex items-center gap-2" style={{textDecoration:'none'}}>
               <div className="text-2xl">{item.icon}</div>
@@ -670,7 +688,7 @@ function Servicii({ services, setServices, cars }) {
       {/* Modal adauga */}
       {modal && (() => {
         const REVIZII = [
-          { cat: '🛢️ Ulei & Filtre', items: ['Schimb ulei motor','Filtru ulei','Filtru aer','Filtru habitaclu / polen','Filtru combustibil'] },
+          { cat: '🛢️ Ulei & Filtre', items: ['Schimb ulei motor','Filtru ulei','Filtru aer','Filtru habitaclu / polen','Filtru combustibil','Ulei cutie viteze','Filtru cutie viteze'] },
           { cat: '🛑 Frâne', items: ['Plăcuțe față','Plăcuțe spate','Discuri față','Discuri spate','Lichid frână'] },
           { cat: '⚙️ Distribuție', items: ['Curea distribuție','Rolă distribuție','Pompă apă','Curea accesorii'] },
           { cat: '🔋 Altele', items: ['Bujii','Baterie','Lichid răcire','Lichid direcție','Amortizoare față','Amortizoare spate','Anvelope față','Anvelope spate'] },
@@ -1327,23 +1345,107 @@ function Finante({ cars, services, plinuri, setPlinuri }) {
 }
 
 // ── Profil ────────────────────────────────────────────────────────────────────
-function Profil({ user, setUser, onLogout }) {
+function Profil({ user, setUser, onLogout, cars, docs, services, preferences, setPreferences }) {
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState(user);
+  const [sectiune, setSectiune] = useState(null); // 'parola' | 'sterge' | null
+  const [formParola, setFormParola] = useState({ curenta:'', noua:'', confirma:'' });
+  const [errParola, setErrParola] = useState('');
+  const [okParola, setOkParola] = useState(false);
+  const [confirmSterge, setConfirmSterge] = useState('');
 
   function salveaza() {
     const users = loadData('ac_users', []);
-    const updated = users.map(u => u.email === user.email ? {...u, ...form} : u);
-    saveData('ac_users', updated);
+    saveData('ac_users', users.map(u => u.email === user.email ? {...u, ...form} : u));
     setUser({...user, ...form});
     setEdit(false);
   }
 
+  function schimbaParola() {
+    setErrParola(''); setOkParola(false);
+    const users = loadData('ac_users', []);
+    const u = users.find(u => u.email === user.email);
+    if (u.parola !== formParola.curenta) { setErrParola('Parola curentă este incorectă.'); return; }
+    if (formParola.noua.length < 6) { setErrParola('Parola nouă trebuie să aibă minim 6 caractere.'); return; }
+    if (formParola.noua !== formParola.confirma) { setErrParola('Parolele noi nu coincid.'); return; }
+    saveData('ac_users', users.map(u => u.email === user.email ? {...u, parola: formParola.noua} : u));
+    setOkParola(true);
+    setFormParola({ curenta:'', noua:'', confirma:'' });
+  }
+
+  function stergeContul() {
+    if (confirmSterge !== user.email) return;
+    const users = loadData('ac_users', []);
+    saveData('ac_users', users.filter(u => u.email !== user.email));
+    ['cars','docs','svc','rem','plin'].forEach(k => localStorage.removeItem(`ac_${k}_${user.email}`));
+    saveData('ac_current', null);
+    onLogout();
+  }
+
+  function toggleDark() {
+    const val = !preferences.darkMode;
+    setPreferences({...preferences, darkMode: val});
+    document.body.classList.toggle('dark', val);
+  }
+
+  function exportCSV(tip) {
+    let continut = '', numeFisier = '';
+    if (tip === 'service') {
+      numeFisier = 'service_autocare.csv';
+      continut = 'Masina,Data,Descriere,Kilometraj,Cost,Nota\n' +
+        services.map(s => {
+          const car = cars.find(c => c.id === s.carId);
+          return `"${car?.marca} ${car?.model} ${car?.numar}","${s.data}","${s.descriere}","${s.km}","${s.cost}","${s.nota||''}"`;
+        }).join('\n');
+    } else if (tip === 'documente') {
+      numeFisier = 'documente_autocare.csv';
+      continut = 'Masina,Tip Document,Data Emitere,Data Expirare,Nota\n' +
+        docs.map(d => {
+          const car = cars.find(c => c.id === d.carId);
+          return `"${car?.marca} ${car?.model} ${car?.numar}","${d.tip}","${d.emis||''}","${d.expira}","${d.nota||''}"`;
+        }).join('\n');
+    } else if (tip === 'masini') {
+      numeFisier = 'masini_autocare.csv';
+      continut = 'Marca,Model,An,Nr Inmatriculare,Kilometraj,Combustibil\n' +
+        cars.map(c => `"${c.marca}","${c.model}","${c.an}","${c.numar}","${c.km}","${c.combustibil}"`).join('\n');
+    } else if (tip === 'backup') {
+      numeFisier = 'backup_autocare.json';
+      continut = JSON.stringify({ user: {nume: user.nume, email: user.email}, cars, docs, services }, null, 2);
+    }
+    const blob = new Blob(['﻿' + continut], { type: tip === 'backup' ? 'application/json' : 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = numeFisier; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const Row = ({ label, value }) => (
+    <div className="flex justify-between py-2.5 border-b border-gray-50 last:border-0 text-sm">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium text-gray-800">{value}</span>
+    </div>
+  );
+
+  const SectionHeader = ({ title }) => (
+    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-5 mb-2">{title}</div>
+  );
+
+  const ActionRow = ({ icon, label, sub, onClick, danger }) => (
+    <button onClick={onClick} className={`w-full flex items-center gap-3 py-3 border-b border-gray-50 last:border-0 text-left ${danger ? 'text-red-500' : ''}`}>
+      <span className="text-xl w-8 text-center">{icon}</span>
+      <div className="flex-1">
+        <div className={`text-sm font-medium ${danger ? 'text-red-500' : 'text-gray-800'}`}>{label}</div>
+        {sub && <div className="text-xs text-gray-400">{sub}</div>}
+      </div>
+      <span className="text-gray-300">›</span>
+    </button>
+  );
+
   return (
     <div className="content p-4">
-      <div className="pt-2 mb-6"><h1 className="text-xl font-bold text-gray-800">👤 Profilul meu</h1></div>
+      <div className="pt-2 mb-4"><h1 className="text-xl font-bold text-gray-800">👤 Profilul meu</h1></div>
 
-      <div className="card p-6 mb-4 text-center">
+      {/* Avatar + info */}
+      <div className="card p-5 mb-1 text-center">
         <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-3">
           {user.nume[0].toUpperCase()}
         </div>
@@ -1351,8 +1453,9 @@ function Profil({ user, setUser, onLogout }) {
         <div className="text-sm text-gray-500">{user.email}</div>
       </div>
 
+      {/* Date personale */}
       {edit ? (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-1">
           <div className="space-y-3">
             <input value={form.nume} onChange={e => setForm({...form, nume: e.target.value})} placeholder="Nume complet" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
             <input value={form.telefon||''} onChange={e => setForm({...form, telefon: e.target.value})} placeholder="Telefon" type="tel" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
@@ -1363,17 +1466,81 @@ function Profil({ user, setUser, onLogout }) {
           </div>
         </div>
       ) : (
-        <div className="card p-4 mb-4">
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">Nume</span><span className="font-medium">{user.nume}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Email</span><span className="font-medium">{user.email}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Telefon</span><span className="font-medium">{user.telefon || '—'}</span></div>
-          </div>
-          <button onClick={() => { setForm(user); setEdit(true); }} className="w-full border border-blue-600 text-blue-600 py-2.5 rounded-xl text-sm font-semibold mt-4">Editează profilul</button>
+        <div className="card p-4 mb-1">
+          <Row label="Nume" value={user.nume} />
+          <Row label="Email" value={user.email} />
+          <Row label="Telefon" value={user.telefon || '—'} />
+          <button onClick={() => { setForm(user); setEdit(true); }} className="w-full border border-blue-600 text-blue-600 py-2.5 rounded-xl text-sm font-semibold mt-3">Editează profilul</button>
         </div>
       )}
 
-      <button onClick={onLogout} className="w-full border border-red-300 text-red-500 py-3 rounded-xl text-sm font-semibold">Deconectare</button>
+      {/* Notificari & Preferinte */}
+      <SectionHeader title="🔔 Notificări & Preferințe" />
+      <div className="card p-4 mb-1">
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block font-medium">Email pentru remindere</label>
+          <input value={preferences.emailNotif || user.email} onChange={e => setPreferences({...preferences, emailNotif: e.target.value})}
+            placeholder="email@exemplu.ro" type="email" className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-3" />
+        </div>
+        {[
+          { key:'notif30', label:'Alertă la 30 de zile înainte' },
+          { key:'notif7',  label:'Alertă la 7 zile înainte' },
+          { key:'notif1',  label:'Alertă cu 1 zi înainte' },
+        ].map(item => (
+          <div key={item.key} className="flex justify-between items-center py-2.5 border-t border-gray-50">
+            <span className="text-sm text-gray-700">{item.label}</span>
+            <button onClick={() => setPreferences({...preferences, [item.key]: !preferences[item.key]})}
+              className={`w-12 h-6 rounded-full transition-colors relative ${preferences[item.key] !== false ? 'bg-blue-600' : 'bg-gray-200'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${preferences[item.key] !== false ? 'left-6' : 'left-0.5'}`} />
+            </button>
+          </div>
+        ))}
+        <div className="flex justify-between items-center py-2.5 border-t border-gray-50">
+          <div>
+            <div className="text-sm text-gray-700">🌙 Mod întunecat</div>
+            <div className="text-xs text-gray-400">Temă dark pentru aplicație</div>
+          </div>
+          <button onClick={toggleDark} className={`w-12 h-6 rounded-full transition-colors relative ${preferences.darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}>
+            <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${preferences.darkMode ? 'left-6' : 'left-0.5'}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Securitate */}
+      <SectionHeader title="🔐 Securitate cont" />
+      <div className="card p-4 mb-1">
+        <ActionRow icon="🔑" label="Schimbă parola" sub="Actualizează parola contului" onClick={() => setSectiune(sectiune === 'parola' ? null : 'parola')} />
+        {sectiune === 'parola' && (
+          <div className="pt-3 space-y-2">
+            {errParola && <div className="bg-red-50 text-red-600 text-xs p-3 rounded-xl">{errParola}</div>}
+            {okParola && <div className="bg-green-50 text-green-600 text-xs p-3 rounded-xl">✓ Parola a fost schimbată cu succes!</div>}
+            <input type="password" value={formParola.curenta} onChange={e => setFormParola({...formParola, curenta: e.target.value})} placeholder="Parola curentă" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            <input type="password" value={formParola.noua} onChange={e => setFormParola({...formParola, noua: e.target.value})} placeholder="Parola nouă" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            <input type="password" value={formParola.confirma} onChange={e => setFormParola({...formParola, confirma: e.target.value})} placeholder="Confirmă parola nouă" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            <button onClick={schimbaParola} className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold">Salvează parola</button>
+          </div>
+        )}
+        <ActionRow icon="🗑️" label="Șterge contul" sub="Elimină permanent contul și datele" onClick={() => setSectiune(sectiune === 'sterge' ? null : 'sterge')} danger />
+        {sectiune === 'sterge' && (
+          <div className="pt-3 space-y-2">
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl">⚠️ Această acțiune este ireversibilă. Toate datele tale vor fi șterse permanent.</div>
+            <input value={confirmSterge} onChange={e => setConfirmSterge(e.target.value)} placeholder={`Scrie "${user.email}" pentru confirmare`} className="w-full border border-red-300 rounded-xl p-3 text-sm" />
+            <button onClick={stergeContul} disabled={confirmSterge !== user.email} className="w-full bg-red-500 disabled:bg-gray-200 disabled:text-gray-400 text-white py-2.5 rounded-xl text-sm font-semibold">Șterge definitiv contul</button>
+          </div>
+        )}
+      </div>
+
+      {/* Date & Export */}
+      <SectionHeader title="📤 Date & Export" />
+      <div className="card p-4 mb-4">
+        <ActionRow icon="🔩" label="Export istoric service (CSV)" sub={`${services.length} înregistrări`} onClick={() => exportCSV('service')} />
+        <ActionRow icon="📄" label="Export documente (CSV)" sub={`${docs.length} documente`} onClick={() => exportCSV('documente')} />
+        <ActionRow icon="🚗" label="Export mașini (CSV)" sub={`${cars.length} mașini`} onClick={() => exportCSV('masini')} />
+        <ActionRow icon="💾" label="Backup complet (JSON)" sub="Toate datele tale" onClick={() => exportCSV('backup')} />
+        <ActionRow icon="🖨️" label="Printează / Salvează PDF" sub="Deschide dialogul de printare" onClick={() => window.print()} />
+      </div>
+
+      <button onClick={onLogout} className="w-full border border-red-300 text-red-500 py-3 rounded-xl text-sm font-semibold mb-4">Deconectare</button>
     </div>
   );
 }
@@ -1387,6 +1554,7 @@ function App() {
   const [services, setServices] = useState([]);
   const [reminderSettings, setReminderSettings] = useState({ zile: [30, 7], oilInterval: {} });
   const [plinuri, setPlinuri] = useState([]);
+  const [preferences, setPreferences] = useState({ notif30: true, notif7: true, notif1: false, darkMode: false, emailNotif: '' });
 
   useEffect(() => {
     const email = loadData('ac_current', null);
@@ -1404,6 +1572,9 @@ function App() {
     setServices(loadData(`ac_svc_${u.email}`, []));
     setReminderSettings(loadData(`ac_rem_${u.email}`, { zile: [30, 7], oilInterval: {} }));
     setPlinuri(loadData(`ac_plin_${u.email}`, []));
+    const prefs = loadData(`ac_pref_${u.email}`, { notif30: true, notif7: true, notif1: false, darkMode: false, emailNotif: '' });
+    setPreferences(prefs);
+    document.body.classList.toggle('dark', prefs.darkMode);
   }
 
   function logout() {
@@ -1417,6 +1588,7 @@ function App() {
   useEffect(() => { if (user) saveData(`ac_svc_${user.email}`, services); }, [services]);
   useEffect(() => { if (user) saveData(`ac_rem_${user.email}`, reminderSettings); }, [reminderSettings]);
   useEffect(() => { if (user) saveData(`ac_plin_${user.email}`, plinuri); }, [plinuri]);
+  useEffect(() => { if (user) saveData(`ac_pref_${user.email}`, preferences); }, [preferences]);
 
   if (!user) return <AuthScreen onLogin={login} />;
 
@@ -1439,7 +1611,7 @@ function App() {
         {tab === 'servicii'   && <Servicii services={services} setServices={setServices} cars={cars} />}
         {tab === 'remindere'  && <Remindere cars={cars} docs={docs} services={services} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />}
         {tab === 'finante'    && <Finante cars={cars} services={services} plinuri={plinuri} setPlinuri={setPlinuri} />}
-        {tab === 'profil'     && <Profil user={user} setUser={setUser} onLogout={logout} />}
+        {tab === 'profil'     && <Profil user={user} setUser={setUser} onLogout={logout} cars={cars} docs={docs} services={services} preferences={preferences} setPreferences={setPreferences} />}
       </div>
       <nav className="bottom-nav">
         <div className="flex">
