@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>AutoCare</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; }
+    .app-container { max-width: 430px; margin: 0 auto; min-height: 100vh; background: white; position: relative; box-shadow: 0 0 40px rgba(0,0,0,0.15); }
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: white; border-top: 1px solid #e5e7eb; z-index: 100; }
+    .content { padding-bottom: 80px; }
+    input, select { outline: none; }
+    .card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .badge-red { background: #fee2e2; color: #dc2626; }
+    .badge-yellow { background: #fef9c3; color: #ca8a04; }
+    .badge-green { background: #dcfce7; color: #16a34a; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
+    .modal-box { background: white; border-radius: 24px 24px 0 0; padding: 24px; width: 100%; max-width: 430px; max-height: 90vh; overflow-y: auto; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ─── Date initiale demo ───────────────────────────────────────────────────────
+const initialCars = [
+  { id: 1, marca: 'Dacia', model: 'Logan', an: 2019, numar: 'B 123 ABC', culoare: '#3B82F6' },
+];
+const initialDocs = [
+  { id: 1, carId: 1, tip: 'ITP', expira: '2025-06-15', emis: '2024-06-15', nota: '' },
+  { id: 2, carId: 1, tip: 'RCA', expira: '2025-07-01', emis: '2025-01-01', nota: 'Allianz' },
+  { id: 3, carId: 1, tip: 'Rovinieta', expira: '2025-05-20', emis: '2025-05-20', nota: '' },
+];
+const initialServices = [
+  { id: 1, carId: 1, data: '2024-11-10', descriere: 'Schimb ulei + filtre', km: 87000, cost: 450, nota: '' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function zilePanaLa(dateStr) {
+  const azi = new Date(); azi.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  return Math.round((d - azi) / (1000*60*60*24));
+}
+function statusDoc(dateStr) {
+  const z = zilePanaLa(dateStr);
+  if (z < 0) return { label: 'Expirat', cls: 'badge-red' };
+  if (z <= 30) return { label: `${z} zile`, cls: 'badge-yellow' };
+  return { label: `${z} zile`, cls: 'badge-green' };
+}
+function formatDate(d) {
+  if (!d) return '—';
+  const [y, m, zi] = d.split('-');
+  return `${zi}.${m}.${y}`;
+}
+const DOC_ICONS = { ITP: '🔧', RCA: '🛡️', CASCO: '🔒', Rovinieta: '🛣️', 'Permis auto': '📋', Altele: '📄' };
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function Avatar({ name }) {
+  return (
+    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+      {name ? name[0].toUpperCase() : 'U'}
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({ cars, docs, services, user, onTab }) {
+  const urgent = docs.filter(d => zilePanaLa(d.expira) <= 30);
+  const expirate = docs.filter(d => zilePanaLa(d.expira) < 0);
+
+  return (
+    <div className="content p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 pt-2">
+        <div>
+          <p className="text-sm text-gray-500">Bună ziua,</p>
+          <h1 className="text-xl font-bold text-gray-800">{user.nume || 'Utilizator'} 👋</h1>
+        </div>
+        <Avatar name={user.nume} />
+      </div>
+
+      {/* Sumar carduri */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="card p-3 text-center">
+          <div className="text-2xl font-bold text-blue-600">{cars.length}</div>
+          <div className="text-xs text-gray-500 mt-1">Mașini</div>
+        </div>
+        <div className="card p-3 text-center">
+          <div className="text-2xl font-bold text-red-500">{expirate.length}</div>
+          <div className="text-xs text-gray-500 mt-1">Expirate</div>
+        </div>
+        <div className="card p-3 text-center">
+          <div className="text-2xl font-bold text-yellow-500">{urgent.length - expirate.length}</div>
+          <div className="text-xs text-gray-500 mt-1">Urgente</div>
+        </div>
+      </div>
+
+      {/* Alerte */}
+      {(expirate.length > 0 || urgent.length > 0) && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-wide">⚠️ Necesită atenție</h2>
+          <div className="space-y-2">
+            {docs.filter(d => zilePanaLa(d.expira) <= 30).sort((a,b) => zilePanaLa(a.expira) - zilePanaLa(b.expira)).map(doc => {
+              const car = cars.find(c => c.id === doc.carId);
+              const st = statusDoc(doc.expira);
+              return (
+                <div key={doc.id} className="card p-3 flex items-center gap-3">
+                  <div className="text-2xl">{DOC_ICONS[doc.tip] || '📄'}</div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-800">{doc.tip}</div>
+                    <div className="text-xs text-gray-500">{car?.marca} {car?.model} · {car?.numar}</div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${st.cls}`}>{st.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Masini rapide */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">🚗 Mașinile mele</h2>
+          <button onClick={() => onTab('masini')} className="text-xs text-blue-600 font-medium">Vezi toate</button>
+        </div>
+        {cars.length === 0 ? (
+          <div className="card p-6 text-center text-gray-400">
+            <div className="text-3xl mb-2">🚗</div>
+            <p className="text-sm">Nu ai adăugat nicio mașină</p>
+            <button onClick={() => onTab('masini')} className="mt-3 text-blue-600 text-sm font-medium">Adaugă acum</button>
+          </div>
+        ) : cars.map(car => {
+          const carDocs = docs.filter(d => d.carId === car.id);
+          const nearExp = carDocs.filter(d => zilePanaLa(d.expira) <= 30).length;
+          return (
+            <div key={car.id} className="card p-4 mb-2 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{background: car.culoare + '20'}}>🚗</div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800">{car.marca} {car.model} <span className="text-gray-400 font-normal">· {car.an}</span></div>
+                <div className="text-sm text-gray-500">{car.numar}</div>
+              </div>
+              {nearExp > 0 && <span className="badge-yellow text-xs font-semibold px-2 py-1 rounded-full">{nearExp} doc.</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Ultimele servicii */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">🔩 Ultimele service-uri</h2>
+          <button onClick={() => onTab('servicii')} className="text-xs text-blue-600 font-medium">Vezi toate</button>
+        </div>
+        {services.length === 0 ? (
+          <div className="card p-6 text-center text-gray-400">
+            <p className="text-sm">Niciun service înregistrat</p>
+          </div>
+        ) : services.slice(0,3).map(s => {
+          const car = cars.find(c => c.id === s.carId);
+          return (
+            <div key={s.id} className="card p-3 mb-2 flex items-center gap-3">
+              <div className="text-2xl">🔩</div>
+              <div className="flex-1">
+                <div className="font-medium text-gray-800 text-sm">{s.descriere}</div>
+                <div className="text-xs text-gray-500">{car?.marca} {car?.model} · {formatDate(s.data)}</div>
+              </div>
+              <div className="text-sm font-semibold text-gray-700">{s.cost} lei</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Masini ────────────────────────────────────────────────────────────────────
+function Masini({ cars, setCars, docs, setDocs }) {
+  const [modal, setModal] = useState(false);
+  const [detaliu, setDetaliu] = useState(null);
+  const [form, setForm] = useState({ marca: '', model: '', an: '', numar: '', culoare: '#3B82F6' });
+  const CULORI = ['#3B82F6','#EF4444','#10B981','#F59E0B','#8B5CF6','#EC4899','#6B7280'];
+
+  function adaugaMasina() {
+    if (!form.marca || !form.model || !form.numar) return;
+    const nou = { id: Date.now(), ...form, an: parseInt(form.an) || new Date().getFullYear() };
+    setCars([...cars, nou]);
+    setForm({ marca:'', model:'', an:'', numar:'', culoare:'#3B82F6' });
+    setModal(false);
+  }
+  function stergeMasina(id) {
+    setCars(cars.filter(c => c.id !== id));
+    setDocs(docs.filter(d => d.carId !== id));
+    setDetaliu(null);
+  }
+
+  return (
+    <div className="content p-4">
+      <div className="flex items-center justify-between mb-6 pt-2">
+        <h1 className="text-xl font-bold text-gray-800">🚗 Mașinile mele</h1>
+        <button onClick={() => setModal(true)} className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Adaugă</button>
+      </div>
+
+      {cars.length === 0 ? (
+        <div className="card p-10 text-center text-gray-400">
+          <div className="text-5xl mb-3">🚗</div>
+          <p>Nu ai adăugat nicio mașină</p>
+          <button onClick={() => setModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă prima mașină</button>
+        </div>
+      ) : cars.map(car => {
+        const carDocs = docs.filter(d => d.carId === car.id);
+        const exp = carDocs.filter(d => zilePanaLa(d.expira) < 0).length;
+        const urg = carDocs.filter(d => zilePanaLa(d.expira) >= 0 && zilePanaLa(d.expira) <= 30).length;
+        return (
+          <div key={car.id} className="card p-4 mb-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDetaliu(car)}>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl" style={{background: car.culoare + '20'}}>🚗</div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800 text-lg">{car.marca} {car.model}</div>
+                <div className="text-sm text-gray-500">{car.numar} · {car.an}</div>
+                <div className="flex gap-2 mt-1">
+                  {exp > 0 && <span className="badge-red text-xs px-2 py-0.5 rounded-full font-medium">{exp} expirate</span>}
+                  {urg > 0 && <span className="badge-yellow text-xs px-2 py-0.5 rounded-full font-medium">{urg} urgente</span>}
+                  {exp === 0 && urg === 0 && <span className="badge-green text-xs px-2 py-0.5 rounded-full font-medium">✓ OK</span>}
+                </div>
+              </div>
+              <div className="text-gray-400 text-xl">›</div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Modal adauga masina */}
+      {modal && (
+        <div className="modal-overlay" onClick={() => setModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-800">Adaugă mașină</h2>
+              <button onClick={() => setModal(false)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="space-y-3">
+              <input value={form.marca} onChange={e => setForm({...form, marca: e.target.value})} placeholder="Marca (ex: Dacia)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              <input value={form.model} onChange={e => setForm({...form, model: e.target.value})} placeholder="Model (ex: Logan)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              <div className="grid grid-cols-2 gap-3">
+                <input value={form.an} onChange={e => setForm({...form, an: e.target.value})} placeholder="An fabricație" type="number" className="border border-gray-200 rounded-xl p-3 text-sm" />
+                <input value={form.numar} onChange={e => setForm({...form, numar: e.target.value.toUpperCase()})} placeholder="Nr. înmatriculare" className="border border-gray-200 rounded-xl p-3 text-sm" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-2">Culoare</p>
+                <div className="flex gap-2">
+                  {CULORI.map(c => (
+                    <button key={c} onClick={() => setForm({...form, culoare: c})} className="w-8 h-8 rounded-full border-2 transition-all" style={{background: c, borderColor: form.culoare === c ? '#1e3a5f' : 'transparent'}} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <button onClick={adaugaMasina} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă mașina</button>
+          </div>
+        </div>
+      )}
+
+      {/* Detaliu masina */}
+      {detaliu && (
+        <div className="modal-overlay" onClick={() => setDetaliu(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800">{detaliu.marca} {detaliu.model}</h2>
+              <button onClick={() => setDetaliu(null)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Număr</span><span className="font-medium">{detaliu.numar}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">An fabricație</span><span className="font-medium">{detaliu.an}</span></div>
+            </div>
+            <h3 className="text-sm font-semibold text-gray-600 mb-2">Documente</h3>
+            {docs.filter(d => d.carId === detaliu.id).length === 0
+              ? <p className="text-sm text-gray-400 mb-4">Niciun document adăugat</p>
+              : docs.filter(d => d.carId === detaliu.id).map(doc => {
+                  const st = statusDoc(doc.expira);
+                  return (
+                    <div key={doc.id} className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{DOC_ICONS[doc.tip]}</span>
+                      <span className="text-sm flex-1 text-gray-700">{doc.tip}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>{st.label}</span>
+                    </div>
+                  );
+                })}
+            <button onClick={() => stergeMasina(detaliu.id)} className="mt-4 w-full border border-red-300 text-red-500 py-2.5 rounded-xl text-sm font-medium">Șterge mașina</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Documente ─────────────────────────────────────────────────────────────────
+function Documente({ docs, setDocs, cars }) {
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ carId: '', tip: 'ITP', expira: '', emis: '', nota: '' });
+  const TIPURI = ['ITP','RCA','CASCO','Rovinieta','Permis auto','Altele'];
+
+  function adaugaDoc() {
+    if (!form.carId || !form.expira) return;
+    const nou = { id: Date.now(), ...form, carId: parseInt(form.carId) };
+    setDocs([...docs, nou]);
+    setForm({ carId:'', tip:'ITP', expira:'', emis:'', nota:'' });
+    setModal(false);
+  }
+  function stergeDoc(id) { setDocs(docs.filter(d => d.id !== id)); }
+
+  const sorted = [...docs].sort((a,b) => zilePanaLa(a.expira) - zilePanaLa(b.expira));
+
+  return (
+    <div className="content p-4">
+      <div className="flex items-center justify-between mb-6 pt-2">
+        <h1 className="text-xl font-bold text-gray-800">📄 Documente</h1>
+        <button onClick={() => setModal(true)} className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl" disabled={cars.length === 0}>+ Adaugă</button>
+      </div>
+
+      {cars.length === 0 && (
+        <div className="card p-6 text-center text-gray-400 mb-4">
+          <p className="text-sm">Adaugă mai întâi o mașină pentru a gestiona documente.</p>
+        </div>
+      )}
+
+      {sorted.length === 0 && cars.length > 0 ? (
+        <div className="card p-10 text-center text-gray-400">
+          <div className="text-5xl mb-3">📄</div>
+          <p>Nu ai adăugat niciun document</p>
+          <button onClick={() => setModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă document</button>
+        </div>
+      ) : sorted.map(doc => {
+        const car = cars.find(c => c.id === doc.carId);
+        const st = statusDoc(doc.expira);
+        return (
+          <div key={doc.id} className="card p-4 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">{DOC_ICONS[doc.tip] || '📄'}</div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800">{doc.tip}</div>
+                <div className="text-xs text-gray-500">{car?.marca} {car?.model} · {car?.numar}</div>
+                <div className="text-xs text-gray-400 mt-0.5">Expiră: {formatDate(doc.expira)}{doc.nota ? ` · ${doc.nota}` : ''}</div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${st.cls}`}>{st.label}</span>
+                <button onClick={() => stergeDoc(doc.id)} className="text-xs text-red-400">🗑️</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {modal && (
+        <div className="modal-overlay" onClick={() => setModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-800">Adaugă document</h2>
+              <button onClick={() => setModal(false)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="space-y-3">
+              <select value={form.carId} onChange={e => setForm({...form, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm">
+                <option value="">Selectează mașina</option>
+                {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
+              </select>
+              <select value={form.tip} onChange={e => setForm({...form, tip: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm">
+                {TIPURI.map(t => <option key={t} value={t}>{DOC_ICONS[t]} {t}</option>)}
+              </select>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Data emiterii</label>
+                <input type="date" value={form.emis} onChange={e => setForm({...form, emis: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Data expirării *</label>
+                <input type="date" value={form.expira} onChange={e => setForm({...form, expira: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              </div>
+              <input value={form.nota} onChange={e => setForm({...form, nota: e.target.value})} placeholder="Notă (ex: Allianz, asigurător...)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            </div>
+            <button onClick={adaugaDoc} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă documentul</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Servicii ──────────────────────────────────────────────────────────────────
+function Servicii({ services, setServices, cars }) {
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ carId: '', data: '', descriere: '', km: '', cost: '', nota: '' });
+
+  function adaugaService() {
+    if (!form.carId || !form.descriere || !form.data) return;
+    const nou = { id: Date.now(), ...form, carId: parseInt(form.carId), km: parseInt(form.km)||0, cost: parseFloat(form.cost)||0 };
+    setServices([...services, nou]);
+    setForm({ carId:'', data:'', descriere:'', km:'', cost:'', nota:'' });
+    setModal(false);
+  }
+  function stergeService(id) { setServices(services.filter(s => s.id !== id)); }
+
+  const sorted = [...services].sort((a,b) => new Date(b.data) - new Date(a.data));
+
+  return (
+    <div className="content p-4">
+      <div className="flex items-center justify-between mb-6 pt-2">
+        <h1 className="text-xl font-bold text-gray-800">🔩 Service</h1>
+        <button onClick={() => setModal(true)} className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl" disabled={cars.length === 0}>+ Adaugă</button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="card p-10 text-center text-gray-400">
+          <div className="text-5xl mb-3">🔩</div>
+          <p>Niciun service înregistrat</p>
+          {cars.length > 0 && <button onClick={() => setModal(true)} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">Adaugă service</button>}
+        </div>
+      ) : sorted.map(s => {
+        const car = cars.find(c => c.id === s.carId);
+        return (
+          <div key={s.id} className="card p-4 mb-3">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl mt-0.5">🔩</div>
+              <div className="flex-1">
+                <div className="font-bold text-gray-800">{s.descriere}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{car?.marca} {car?.model} · {formatDate(s.data)}</div>
+                {s.km > 0 && <div className="text-xs text-gray-400">{s.km.toLocaleString()} km</div>}
+                {s.nota && <div className="text-xs text-gray-400 mt-1">📝 {s.nota}</div>}
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                {s.cost > 0 && <div className="font-semibold text-gray-700 text-sm">{s.cost} lei</div>}
+                <button onClick={() => stergeService(s.id)} className="text-xs text-red-400">🗑️</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {modal && (
+        <div className="modal-overlay" onClick={() => setModal(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-800">Adaugă service</h2>
+              <button onClick={() => setModal(false)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="space-y-3">
+              <select value={form.carId} onChange={e => setForm({...form, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm">
+                <option value="">Selectează mașina</option>
+                {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
+              </select>
+              <input value={form.descriere} onChange={e => setForm({...form, descriere: e.target.value})} placeholder="Descriere (ex: Schimb ulei)" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Data service</label>
+                <input type="date" value={form.data} onChange={e => setForm({...form, data: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={form.km} onChange={e => setForm({...form, km: e.target.value})} placeholder="Kilometraj" type="number" className="border border-gray-200 rounded-xl p-3 text-sm" />
+                <input value={form.cost} onChange={e => setForm({...form, cost: e.target.value})} placeholder="Cost (lei)" type="number" className="border border-gray-200 rounded-xl p-3 text-sm" />
+              </div>
+              <input value={form.nota} onChange={e => setForm({...form, nota: e.target.value})} placeholder="Notă opțională" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            </div>
+            <button onClick={adaugaService} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold text-sm">Adaugă service</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Profil ────────────────────────────────────────────────────────────────────
+function Profil({ user, setUser }) {
+  const [edit, setEdit] = useState(false);
+  const [form, setForm] = useState(user);
+
+  function salveaza() { setUser(form); setEdit(false); }
+
+  return (
+    <div className="content p-4">
+      <div className="pt-2 mb-6">
+        <h1 className="text-xl font-bold text-gray-800">👤 Profilul meu</h1>
+      </div>
+
+      <div className="card p-6 mb-4 text-center">
+        <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white text-3xl font-bold mx-auto mb-3">
+          {user.nume ? user.nume[0].toUpperCase() : 'U'}
+        </div>
+        <div className="font-bold text-gray-800 text-lg">{user.nume || 'Utilizator'}</div>
+        <div className="text-sm text-gray-500">{user.email || 'email@exemplu.ro'}</div>
+      </div>
+
+      {edit ? (
+        <div className="card p-4 mb-4">
+          <div className="space-y-3">
+            <input value={form.nume} onChange={e => setForm({...form, nume: e.target.value})} placeholder="Nume complet" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Email" type="email" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+            <input value={form.telefon} onChange={e => setForm({...form, telefon: e.target.value})} placeholder="Telefon" type="tel" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button onClick={() => setEdit(false)} className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-medium text-gray-600">Anulează</button>
+            <button onClick={salveaza} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold">Salvează</button>
+          </div>
+        </div>
+      ) : (
+        <div className="card p-4 mb-4 space-y-3">
+          <div className="flex justify-between text-sm"><span className="text-gray-500">Nume</span><span className="font-medium text-gray-800">{user.nume || '—'}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-gray-500">Email</span><span className="font-medium text-gray-800">{user.email || '—'}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-gray-500">Telefon</span><span className="font-medium text-gray-800">{user.telefon || '—'}</span></div>
+          <button onClick={() => { setForm(user); setEdit(true); }} className="w-full border border-blue-600 text-blue-600 py-2.5 rounded-xl text-sm font-semibold mt-2">Editează profilul</button>
+        </div>
+      )}
+
+      <div className="card p-4 space-y-1">
+        <div className="text-sm font-semibold text-gray-600 mb-2">Setări notificări</div>
+        {[['30 zile înainte', true],['7 zile înainte', true],['1 zi înainte', false]].map(([label, def]) => {
+          const [on, setOn] = useState(def);
+          return (
+            <div key={label} className="flex justify-between items-center py-2">
+              <span className="text-sm text-gray-700">{label}</span>
+              <button onClick={() => setOn(!on)} className={`w-12 h-6 rounded-full transition-colors ${on ? 'bg-blue-600' : 'bg-gray-200'} relative`}>
+                <div className={`w-5 h-5 bg-white rounded-full shadow absolute top-0.5 transition-all ${on ? 'left-6' : 'left-0.5'}`} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── App principal ─────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState('dashboard');
+  const [cars, setCars] = useState(initialCars);
+  const [docs, setDocs] = useState(initialDocs);
+  const [services, setServices] = useState(initialServices);
+  const [user, setUser] = useState({ nume: 'Denis', email: 'plopdenis@gmail.com', telefon: '' });
+
+  const tabs = [
+    { id: 'dashboard', label: 'Acasă', icon: '🏠' },
+    { id: 'masini',    label: 'Mașini',  icon: '🚗' },
+    { id: 'documente', label: 'Documente', icon: '📄' },
+    { id: 'servicii',  label: 'Service', icon: '🔩' },
+    { id: 'profil',    label: 'Profil',  icon: '👤' },
+  ];
+
+  return (
+    <div className="app-container">
+      <div className="content" style={{paddingBottom: 80}}>
+        {tab === 'dashboard' && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
+        {tab === 'masini'    && <Masini cars={cars} setCars={setCars} docs={docs} setDocs={setDocs} />}
+        {tab === 'documente' && <Documente docs={docs} setDocs={setDocs} cars={cars} />}
+        {tab === 'servicii'  && <Servicii services={services} setServices={setServices} cars={cars} />}
+        {tab === 'profil'    && <Profil user={user} setUser={setUser} />}
+      </div>
+      <nav className="bottom-nav">
+        <div className="flex">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} className={`flex-1 flex flex-col items-center py-2 text-xs font-medium transition-colors ${tab === t.id ? 'text-blue-600' : 'text-gray-400'}`}>
+              <span className="text-xl mb-0.5">{t.icon}</span>
+              {t.label}
+              {tab === t.id && <div className="w-1 h-1 rounded-full bg-blue-600 mt-0.5" />}
+            </button>
+          ))}
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
