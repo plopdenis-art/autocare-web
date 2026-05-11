@@ -317,6 +317,27 @@ function Dashboard({ cars, docs, services, user, onTab }) {
         })}
       </div>
 
+      {/* Verificari rapide */}
+      <div className="mb-6">
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">🔍 Verificări rapide</h2>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { icon:'🔧', label:'Verificare ITP', sub:'itp.ro', url:'https://www.itp.ro/verificare' },
+            { icon:'🛡️', label:'Verificare RCA', sub:'asfromania.ro', url:'https://www.asfromania.ro/consumatori/verificare-rca' },
+            { icon:'🛣️', label:'Rovinieta', sub:'roviniete.ro', url:'https://www.roviniete.ro/ro/verificare' },
+            { icon:'📋', label:'Amenzi rutiere', sub:'ghiseul.ro', url:'https://www.ghiseul.ro' },
+          ].map(item => (
+            <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="card p-3 flex items-center gap-2" style={{textDecoration:'none'}}>
+              <div className="text-2xl">{item.icon}</div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">{item.label}</div>
+                <div className="text-xs text-gray-400">{item.sub}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">🔩 Ultimele service-uri</h2>
@@ -750,6 +771,561 @@ function Servicii({ services, setServices, cars }) {
   );
 }
 
+// ── Remindere ─────────────────────────────────────────────────────────────────
+function Remindere({ cars, docs, services, reminderSettings, setReminderSettings }) {
+  const [view, setView] = useState('lista');
+  const [calDate, setCalDate] = useState(new Date());
+  const [notifPerm, setNotifPerm] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+
+  const ZILE_INAINTE = [30, 14, 7, 3, 1];
+  const OIL_INTERVALS = [5000, 7500, 10000, 15000, 20000];
+
+  function cerePermisiune() {
+    if (typeof Notification === 'undefined') return;
+    Notification.requestPermission().then(p => {
+      setNotifPerm(p);
+      if (p === 'granted') new Notification('AutoCare 🚗', { body: 'Notificările sunt activate! Vei fi alertat înainte de expirări.' });
+    });
+  }
+
+  // Genereaza toate evenimentele viitoare
+  function getEvenimente() {
+    const ev = [];
+    // Documente
+    docs.forEach(d => {
+      const car = cars.find(c => c.id === d.carId);
+      const zile = zilePanaLa(d.expira);
+      ev.push({ id: `doc-${d.id}`, tip: 'document', titlu: d.tip, subtitlu: `${car?.marca} ${car?.model} · ${car?.numar}`, data: d.expira, zile, icon: DOC_ICONS[d.tip] || '📄', carId: d.carId });
+    });
+    // Revizie anuala (ITP-based)
+    cars.forEach(car => {
+      const itpDoc = docs.filter(d => d.carId === car.id && d.tip === 'ITP').sort((a,b) => new Date(b.expira) - new Date(a.expira))[0];
+      if (!itpDoc) {
+        ev.push({ id: `rev-${car.id}`, tip: 'revizie', titlu: 'Revizie anuală', subtitlu: `${car.marca} ${car.model} · ${car.numar}`, data: null, zile: null, icon: '📋', carId: car.id, fara_data: true });
+      }
+    });
+    // Schimb ulei pe km
+    cars.forEach(car => {
+      const interval = reminderSettings?.oilInterval?.[car.id];
+      if (!interval || !car.km) return;
+      const ultimulOlei = services.filter(s => s.carId === car.id && s.piese && s.piese.toLowerCase().includes('ulei')).sort((a,b) => b.km - a.km)[0];
+      const bazaKm = ultimulOlei ? ultimulOlei.km : 0;
+      const urmatorul = bazaKm + interval;
+      const kmRamasi = urmatorul - car.km;
+      ev.push({ id: `oil-${car.id}`, tip: 'ulei', titlu: 'Schimb ulei motor', subtitlu: `${car.marca} ${car.model} · la ${urmatorul.toLocaleString()} km`, data: null, zile: null, kmRamasi, icon: '🛢️', carId: car.id, urmatorul, km: car.km });
+    });
+    return ev.sort((a,b) => {
+      if (a.data && b.data) return new Date(a.data) - new Date(b.data);
+      if (a.data) return -1;
+      if (b.data) return 1;
+      if (a.kmRamasi !== undefined && b.kmRamasi !== undefined) return a.kmRamasi - b.kmRamasi;
+      return 0;
+    });
+  }
+
+  const evenimente = getEvenimente();
+
+  // Calendar
+  const azi = new Date();
+  const primaZi = new Date(calDate.getFullYear(), calDate.getMonth(), 1);
+  const ultimaZi = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 0);
+  const ziStart = primaZi.getDay() === 0 ? 6 : primaZi.getDay() - 1;
+  const zileCalendar = [];
+  for (let i = 0; i < ziStart; i++) zileCalendar.push(null);
+  for (let i = 1; i <= ultimaZi.getDate(); i++) zileCalendar.push(i);
+
+  function evPeZi(zi) {
+    if (!zi) return [];
+    const d = new Date(calDate.getFullYear(), calDate.getMonth(), zi);
+    const dStr = d.toISOString().split('T')[0];
+    return evenimente.filter(e => e.data === dStr);
+  }
+
+  function getLunaStr(d) {
+    return d.toLocaleDateString('ro-RO', { month: 'long', year: 'numeric' });
+  }
+
+  function getBadgeOil(kmRamasi) {
+    if (kmRamasi <= 0) return 'badge-red';
+    if (kmRamasi <= 1500) return 'badge-yellow';
+    return 'badge-green';
+  }
+
+  return (
+    <div className="content p-4">
+      <div className="pt-2 mb-4">
+        <h1 className="text-xl font-bold text-gray-800">📅 Remindere</h1>
+      </div>
+
+      {/* Banner notificari */}
+      {notifPerm === 'default' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4 flex items-center gap-3">
+          <div className="text-2xl">🔔</div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-blue-800">Activează notificările</div>
+            <div className="text-xs text-blue-600">Primești alerte înainte de expirări</div>
+          </div>
+          <button onClick={cerePermisiune} className="bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl">Activează</button>
+        </div>
+      )}
+      {notifPerm === 'granted' && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-3 mb-4 flex items-center gap-2">
+          <span className="text-green-600">✓</span>
+          <span className="text-sm text-green-700 font-medium">Notificările sunt active</span>
+        </div>
+      )}
+      {notifPerm === 'denied' && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-3 mb-4">
+          <span className="text-xs text-red-600">Notificările sunt blocate. Activează-le din setările browser-ului.</span>
+        </div>
+      )}
+
+      {/* Toggle lista/calendar */}
+      <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+        <button onClick={() => setView('lista')} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${view === 'lista' ? 'bg-white text-blue-600 shadow' : 'text-gray-500'}`}>📋 Listă</button>
+        <button onClick={() => setView('calendar')} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${view === 'calendar' ? 'bg-white text-blue-600 shadow' : 'text-gray-500'}`}>📅 Calendar</button>
+      </div>
+
+      {/* LISTA */}
+      {view === 'lista' && (
+        <div>
+          {/* Setari intervale notificare */}
+          <div className="card p-4 mb-4">
+            <div className="text-sm font-semibold text-gray-700 mb-3">⚙️ Alertă cu ... zile înainte</div>
+            <div className="flex flex-wrap gap-2">
+              {ZILE_INAINTE.map(z => {
+                const activ = reminderSettings?.zile?.includes(z) ?? (z === 30 || z === 7);
+                return (
+                  <button key={z} onClick={() => {
+                    const cur = reminderSettings?.zile || [30, 7];
+                    const nou = activ ? cur.filter(x => x !== z) : [...cur, z];
+                    setReminderSettings({...reminderSettings, zile: nou});
+                  }} className={`px-3 py-1.5 rounded-xl text-sm font-semibold border-2 transition-all ${activ ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    {z} {z === 1 ? 'zi' : 'zile'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Interval schimb ulei per masina */}
+          {cars.length > 0 && (
+            <div className="card p-4 mb-4">
+              <div className="text-sm font-semibold text-gray-700 mb-3">🛢️ Interval schimb ulei</div>
+              {cars.map(car => (
+                <div key={car.id} className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-gray-700">{car.marca} {car.model}</div>
+                  <select value={reminderSettings?.oilInterval?.[car.id] || ''} onChange={e => setReminderSettings({...reminderSettings, oilInterval: {...reminderSettings?.oilInterval, [car.id]: parseInt(e.target.value) || null}})}
+                    className="border border-gray-200 rounded-xl p-2 text-xs bg-white w-32">
+                    <option value="">Fără</option>
+                    {OIL_INTERVALS.map(k => <option key={k} value={k}>la {k.toLocaleString()} km</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Lista evenimente */}
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Toate scadențele</div>
+          {evenimente.length === 0 ? (
+            <div className="card p-8 text-center text-gray-400">
+              <div className="text-4xl mb-2">🎉</div>
+              <p className="text-sm">Totul e în regulă! Nicio scadență.</p>
+            </div>
+          ) : evenimente.map(ev => {
+            let badge = null;
+            let extra = null;
+            if (ev.data) {
+              const st = statusDoc(ev.data);
+              badge = <span className={`text-xs font-semibold px-2 py-1 rounded-full ${st.cls}`}>{st.label}</span>;
+            } else if (ev.kmRamasi !== undefined) {
+              badge = <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getBadgeOil(ev.kmRamasi)}`}>{ev.kmRamasi > 0 ? `${ev.kmRamasi.toLocaleString()} km` : 'Depășit'}</span>;
+              extra = <div className="text-xs text-gray-400 mt-0.5">Actual: {ev.km?.toLocaleString()} km · Următor: {ev.urmatorul?.toLocaleString()} km</div>;
+            } else if (ev.fara_data) {
+              badge = <span className="badge-yellow text-xs font-semibold px-2 py-1 rounded-full">Fără ITP</span>;
+            }
+            return (
+              <div key={ev.id} className="card p-3 mb-2 flex items-center gap-3">
+                <div className="text-2xl w-8 text-center">{ev.icon}</div>
+                <div className="flex-1">
+                  <div className="font-medium text-gray-800 text-sm">{ev.titlu}</div>
+                  <div className="text-xs text-gray-500">{ev.subtitlu}</div>
+                  {ev.data && <div className="text-xs text-gray-400">Expiră: {formatDate(ev.data)}</div>}
+                  {extra}
+                </div>
+                {badge}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* CALENDAR */}
+      {view === 'calendar' && (
+        <div>
+          {/* Navigare luna */}
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth()-1, 1))} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold">‹</button>
+            <div className="font-semibold text-gray-800 capitalize">{getLunaStr(calDate)}</div>
+            <button onClick={() => setCalDate(new Date(calDate.getFullYear(), calDate.getMonth()+1, 1))} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold">›</button>
+          </div>
+
+          {/* Zile saptamana */}
+          <div className="grid grid-cols-7 mb-1">
+            {['L','M','M','J','V','S','D'].map((z,i) => (
+              <div key={i} className="text-center text-xs font-semibold text-gray-400 py-1">{z}</div>
+            ))}
+          </div>
+
+          {/* Grid zile */}
+          <div className="grid grid-cols-7 gap-0.5">
+            {zileCalendar.map((zi, i) => {
+              if (!zi) return <div key={i} />;
+              const evZi = evPeZi(zi);
+              const esteAzi = zi === azi.getDate() && calDate.getMonth() === azi.getMonth() && calDate.getFullYear() === azi.getFullYear();
+              const areExpirirat = evZi.some(e => e.zile < 0);
+              const areUrgent = evZi.some(e => e.zile >= 0 && e.zile <= 7);
+              const areViitor = evZi.some(e => e.zile > 7);
+              return (
+                <div key={i} className={`aspect-square flex flex-col items-center justify-center rounded-xl cursor-default ${esteAzi ? 'bg-blue-600 text-white' : ''}`}>
+                  <div className={`text-sm font-medium ${esteAzi ? 'text-white' : 'text-gray-700'}`}>{zi}</div>
+                  {evZi.length > 0 && (
+                    <div className="flex gap-0.5 mt-0.5">
+                      {areExpirirat && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                      {areUrgent && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
+                      {areViitor && <div className="w-1.5 h-1.5 rounded-full bg-green-400" />}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legenda */}
+          <div className="flex gap-4 justify-center mt-3 mb-4">
+            <div className="flex items-center gap-1 text-xs text-gray-500"><div className="w-2 h-2 rounded-full bg-red-500"/>Expirat</div>
+            <div className="flex items-center gap-1 text-xs text-gray-500"><div className="w-2 h-2 rounded-full bg-yellow-400"/>Urgent</div>
+            <div className="flex items-center gap-1 text-xs text-gray-500"><div className="w-2 h-2 rounded-full bg-green-400"/>Viitor</div>
+          </div>
+
+          {/* Evenimente luna curenta */}
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Evenimente în {calDate.toLocaleDateString('ro-RO', {month: 'long'})}</div>
+          {evenimente.filter(e => e.data && new Date(e.data).getMonth() === calDate.getMonth() && new Date(e.data).getFullYear() === calDate.getFullYear()).length === 0
+            ? <div className="card p-4 text-center text-gray-400 text-sm">Niciun eveniment în această lună</div>
+            : evenimente.filter(e => e.data && new Date(e.data).getMonth() === calDate.getMonth() && new Date(e.data).getFullYear() === calDate.getFullYear()).map(ev => {
+              const st = statusDoc(ev.data);
+              return (
+                <div key={ev.id} className="card p-3 mb-2 flex items-center gap-3">
+                  <div className="text-xl">{ev.icon}</div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-800 text-sm">{ev.titlu}</div>
+                    <div className="text-xs text-gray-500">{ev.subtitlu} · {formatDate(ev.data)}</div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${st.cls}`}>{st.label}</span>
+                </div>
+              );
+            })
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Finante ───────────────────────────────────────────────────────────────────
+function Finante({ cars, services, plinuri, setPlinuri }) {
+  const [subtab, setSubtab] = useState('costuri');
+  const [anSelectat, setAnSelectat] = useState(new Date().getFullYear());
+  const [carSelectat, setCarSelectat] = useState('toate');
+  const [modalPlin, setModalPlin] = useState(false);
+  const [formPlin, setFormPlin] = useState({ carId:'', data:'', litri:'', pretTotal:'', pretLitru:'', km:'', statie:'' });
+
+  const LUNI_SCURT = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec'];
+  const aniDisponibili = [...new Set([new Date().getFullYear(), ...services.map(s => new Date(s.data).getFullYear())])].sort((a,b) => b-a);
+
+  // ── COSTURI ──
+  const svcFiltrate = services.filter(s => {
+    const anS = new Date(s.data).getFullYear();
+    if (anS !== anSelectat) return false;
+    if (carSelectat !== 'toate' && s.carId !== parseInt(carSelectat)) return false;
+    return true;
+  });
+
+  const totalAn = svcFiltrate.reduce((sum, s) => sum + (s.cost||0), 0);
+
+  const costPerCar = cars.map(car => ({
+    car,
+    total: services.filter(s => new Date(s.data).getFullYear() === anSelectat && s.carId === car.id).reduce((sum,s) => sum+(s.cost||0), 0),
+    count: services.filter(s => new Date(s.data).getFullYear() === anSelectat && s.carId === car.id).length,
+  }));
+
+  const costPerLuna = LUNI_SCURT.map((_, i) =>
+    svcFiltrate.filter(s => new Date(s.data).getMonth() === i).reduce((sum,s) => sum+(s.cost||0), 0)
+  );
+  const maxLuna = Math.max(...costPerLuna, 1);
+
+  // cost/km per masina
+  function costPeKm(car) {
+    const svcCar = services.filter(s => s.carId === car.id);
+    const totalCost = svcCar.reduce((sum,s) => sum+(s.cost||0), 0);
+    if (!car.km || car.km === 0 || totalCost === 0) return null;
+    return (totalCost / car.km).toFixed(2);
+  }
+
+  // ── CONSUM ──
+  function adaugaPlin() {
+    if (!formPlin.carId || !formPlin.data || !formPlin.litri || !formPlin.km) return;
+    const pretL = formPlin.pretLitru ? parseFloat(formPlin.pretLitru) : formPlin.pretTotal ? (parseFloat(formPlin.pretTotal)/parseFloat(formPlin.litri)) : 0;
+    const nou = { id: Date.now(), ...formPlin, carId: parseInt(formPlin.carId), litri: parseFloat(formPlin.litri), km: parseInt(formPlin.km), pretLitru: pretL, pretTotal: pretL * parseFloat(formPlin.litri) };
+    setPlinuri([...plinuri, nou]);
+    setFormPlin({ carId:'', data:'', litri:'', pretTotal:'', pretLitru:'', km:'', statie:'' });
+    setModalPlin(false);
+  }
+
+  function consumMediu(carId) {
+    const pl = plinuri.filter(p => p.carId === carId).sort((a,b) => a.km - b.km);
+    if (pl.length < 2) return null;
+    const distanta = pl[pl.length-1].km - pl[0].km;
+    const litriTotal = pl.slice(1).reduce((sum,p) => sum+p.litri, 0);
+    if (distanta === 0) return null;
+    return (litriTotal/distanta*100).toFixed(1);
+  }
+
+  function costMediu100km(carId) {
+    const pl = plinuri.filter(p => p.carId === carId).sort((a,b) => a.km - b.km);
+    if (pl.length < 2) return null;
+    const distanta = pl[pl.length-1].km - pl[0].km;
+    const costTotal = pl.slice(1).reduce((sum,p) => sum+p.pretTotal, 0);
+    if (distanta === 0) return null;
+    return (costTotal/distanta*100).toFixed(0);
+  }
+
+  const plinuriSortate = [...plinuri].sort((a,b) => new Date(b.data) - new Date(a.data));
+
+  return (
+    <div className="content p-4">
+      <div className="pt-2 mb-4"><h1 className="text-xl font-bold text-gray-800">📊 Finanțe</h1></div>
+
+      <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+        <button onClick={() => setSubtab('costuri')} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${subtab==='costuri' ? 'bg-white text-blue-600 shadow' : 'text-gray-500'}`}>💰 Costuri</button>
+        <button onClick={() => setSubtab('consum')} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${subtab==='consum' ? 'bg-white text-blue-600 shadow' : 'text-gray-500'}`}>⛽ Consum</button>
+      </div>
+
+      {/* ── COSTURI ── */}
+      {subtab === 'costuri' && (
+        <div>
+          {/* Filtre */}
+          <div className="flex gap-2 mb-4">
+            <select value={anSelectat} onChange={e => setAnSelectat(parseInt(e.target.value))} className="border border-gray-200 rounded-xl p-2.5 text-sm bg-white flex-1">
+              {aniDisponibili.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <select value={carSelectat} onChange={e => setCarSelectat(e.target.value)} className="border border-gray-200 rounded-xl p-2.5 text-sm bg-white flex-1">
+              <option value="toate">Toate mașinile</option>
+              {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model}</option>)}
+            </select>
+          </div>
+
+          {/* Total an */}
+          <div className="bg-blue-600 rounded-2xl p-5 mb-4 text-white text-center">
+            <div className="text-xs opacity-75 mb-1">Total cheltuieli {anSelectat}</div>
+            <div className="text-4xl font-bold">{totalAn.toLocaleString()} lei</div>
+            <div className="text-xs opacity-75 mt-1">{svcFiltrate.length} intervenții</div>
+          </div>
+
+          {/* Per masina */}
+          {cars.length > 1 && (
+            <div className="card p-4 mb-4">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pe mașină</div>
+              {costPerCar.map(({car, total, count}) => (
+                <div key={car.id} className="mb-3 last:mb-0">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium text-gray-700">{car.marca} {car.model}</span>
+                    <span className="font-bold text-gray-800">{total.toLocaleString()} lei</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="bg-blue-500 h-2 rounded-full" style={{width: totalAn > 0 ? `${(total/Math.max(...costPerCar.map(x=>x.total),1))*100}%` : '0%'}} />
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">{count} intervenții</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Grafic lunar */}
+          <div className="card p-4 mb-4">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Lunar — {anSelectat}</div>
+            <div className="flex items-end gap-1 h-28">
+              {costPerLuna.map((val, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="text-xs text-gray-500 font-medium" style={{fontSize:'9px'}}>{val > 0 ? val : ''}</div>
+                  <div className="w-full rounded-t-md transition-all" style={{height: `${Math.max((val/maxLuna)*80, val>0?6:0)}px`, background: val>0 ? '#2563EB' : '#E5E7EB'}} />
+                  <div className="text-gray-400" style={{fontSize:'9px'}}>{LUNI_SCURT[i]}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cost pe km */}
+          <div className="card p-4 mb-4">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Cost per kilometru</div>
+            {cars.map(car => {
+              const cpk = costPeKm(car);
+              return (
+                <div key={car.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">{car.marca} {car.model}</div>
+                    <div className="text-xs text-gray-400">{car.km?.toLocaleString()} km total</div>
+                  </div>
+                  <div className="text-right">
+                    {cpk ? <div className="font-bold text-blue-600">{cpk} lei/km</div> : <div className="text-xs text-gray-400">Insuficiente date</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Lista servicii */}
+          {svcFiltrate.length > 0 && (
+            <div className="card p-4">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Detaliu intervenții</div>
+              {[...svcFiltrate].sort((a,b) => new Date(b.data)-new Date(a.data)).map(s => {
+                const car = cars.find(c => c.id === s.carId);
+                return (
+                  <div key={s.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+                    <div>
+                      <div className="text-sm text-gray-700 font-medium">{s.descriere?.substring(0,35)}{s.descriere?.length>35?'...':''}</div>
+                      <div className="text-xs text-gray-400">{car?.marca} {car?.model} · {formatDate(s.data)}</div>
+                    </div>
+                    <div className="font-semibold text-gray-800 text-sm">{s.cost} lei</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CONSUM ── */}
+      {subtab === 'consum' && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <button onClick={() => setModalPlin(true)} disabled={cars.length===0} className="bg-blue-600 disabled:bg-gray-200 text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Adaugă plin</button>
+          </div>
+
+          {/* Sumar consum per masina */}
+          {cars.map(car => {
+            const cm = consumMediu(car.id);
+            const cost100 = costMediu100km(car.id);
+            const nrPlinuri = plinuri.filter(p => p.carId === car.id).length;
+            const totalCheltuiti = plinuri.filter(p => p.carId === car.id).reduce((sum,p) => sum+p.pretTotal, 0);
+            return (
+              <div key={car.id} className="card p-4 mb-3">
+                <div className="font-bold text-gray-800 mb-3">{car.marca} {car.model} <span className="font-normal text-gray-400 text-sm">· {car.numar}</span></div>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <div className="bg-blue-50 rounded-xl p-3 text-center">
+                    <div className="text-xs text-blue-500 mb-1">Consum mediu</div>
+                    <div className="font-bold text-blue-700">{cm ? `${cm} l/100` : '—'}</div>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                    <div className="text-xs text-green-500 mb-1">Cost /100km</div>
+                    <div className="font-bold text-green-700">{cost100 ? `${cost100} lei` : '—'}</div>
+                  </div>
+                  <div className="bg-orange-50 rounded-xl p-3 text-center">
+                    <div className="text-xs text-orange-500 mb-1">Total carburant</div>
+                    <div className="font-bold text-orange-700">{totalCheltuiti > 0 ? `${totalCheltuiti.toFixed(0)} lei` : '—'}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-400 text-center">{nrPlinuri} plinuri înregistrate</div>
+              </div>
+            );
+          })}
+
+          {/* Lista plinuri */}
+          {plinuriSortate.length === 0 ? (
+            <div className="card p-8 text-center text-gray-400">
+              <div className="text-4xl mb-2">⛽</div>
+              <p className="text-sm mb-3">Nu ai înregistrat niciun plin</p>
+              {cars.length > 0 && <button onClick={() => setModalPlin(true)} className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">Adaugă primul plin</button>}
+            </div>
+          ) : (
+            <div className="card p-4">
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Istoric plinuri</div>
+              {plinuriSortate.map(p => {
+                const car = cars.find(c => c.id === p.carId);
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                    <div className="text-2xl">⛽</div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-800">{p.litri} litri · {p.km?.toLocaleString()} km</div>
+                      <div className="text-xs text-gray-400">{car?.marca} {car?.model} · {formatDate(p.data)}{p.statie ? ` · ${p.statie}` : ''}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-gray-800">{p.pretTotal.toFixed(2)} lei</div>
+                      <div className="text-xs text-gray-400">{p.pretLitru?.toFixed(2)} lei/l</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Modal plin */}
+          {modalPlin && (
+            <div className="modal-overlay" onClick={() => setModalPlin(false)}>
+              <div className="modal-box" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold text-gray-800">⛽ Adaugă plin</h2>
+                  <button onClick={() => setModalPlin(false)} className="text-gray-400 text-xl">✕</button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block font-medium">Mașina *</label>
+                    <select value={formPlin.carId} onChange={e => setFormPlin({...formPlin, carId: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white">
+                      <option value="">Selectează mașina</option>
+                      {cars.map(c => <option key={c.id} value={c.id}>{c.marca} {c.model} · {c.numar}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block font-medium">Data *</label>
+                      <input type="date" value={formPlin.data} onChange={e => setFormPlin({...formPlin, data: e.target.value})} className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block font-medium">Kilometraj *</label>
+                      <input type="number" value={formPlin.km} onChange={e => setFormPlin({...formPlin, km: e.target.value})} placeholder="ex: 87500" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block font-medium">Litri *</label>
+                      <input type="number" step="0.01" value={formPlin.litri} onChange={e => setFormPlin({...formPlin, litri: e.target.value})} placeholder="ex: 45.5" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block font-medium">Preț/litru (lei)</label>
+                      <input type="number" step="0.01" value={formPlin.pretLitru} onChange={e => setFormPlin({...formPlin, pretLitru: e.target.value, pretTotal: e.target.value && formPlin.litri ? (parseFloat(e.target.value)*parseFloat(formPlin.litri)).toFixed(2) : formPlin.pretTotal})} placeholder="ex: 7.25" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block font-medium">Total plătit (lei)</label>
+                      <input type="number" step="0.01" value={formPlin.pretTotal} onChange={e => setFormPlin({...formPlin, pretTotal: e.target.value, pretLitru: e.target.value && formPlin.litri ? (parseFloat(e.target.value)/parseFloat(formPlin.litri)).toFixed(3) : formPlin.pretLitru})} placeholder="ex: 330" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block font-medium">Stație</label>
+                      <input value={formPlin.statie} onChange={e => setFormPlin({...formPlin, statie: e.target.value})} placeholder="ex: Rompetrol" className="w-full border border-gray-200 rounded-xl p-3 text-sm" />
+                    </div>
+                  </div>
+                </div>
+                <button onClick={adaugaPlin} disabled={!formPlin.carId||!formPlin.data||!formPlin.litri||!formPlin.km} className="mt-5 w-full bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white py-3.5 rounded-xl font-semibold text-sm">Salvează plinul</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Profil ────────────────────────────────────────────────────────────────────
 function Profil({ user, setUser, onLogout }) {
   const [edit, setEdit] = useState(false);
@@ -809,6 +1385,8 @@ function App() {
   const [cars, setCars] = useState([]);
   const [docs, setDocs] = useState([]);
   const [services, setServices] = useState([]);
+  const [reminderSettings, setReminderSettings] = useState({ zile: [30, 7], oilInterval: {} });
+  const [plinuri, setPlinuri] = useState([]);
 
   useEffect(() => {
     const email = loadData('ac_current', null);
@@ -824,6 +1402,8 @@ function App() {
     setCars(loadData(`ac_cars_${u.email}`, []));
     setDocs(loadData(`ac_docs_${u.email}`, []));
     setServices(loadData(`ac_svc_${u.email}`, []));
+    setReminderSettings(loadData(`ac_rem_${u.email}`, { zile: [30, 7], oilInterval: {} }));
+    setPlinuri(loadData(`ac_plin_${u.email}`, []));
   }
 
   function logout() {
@@ -835,25 +1415,31 @@ function App() {
   useEffect(() => { if (user) saveData(`ac_cars_${user.email}`, cars); }, [cars]);
   useEffect(() => { if (user) saveData(`ac_docs_${user.email}`, docs); }, [docs]);
   useEffect(() => { if (user) saveData(`ac_svc_${user.email}`, services); }, [services]);
+  useEffect(() => { if (user) saveData(`ac_rem_${user.email}`, reminderSettings); }, [reminderSettings]);
+  useEffect(() => { if (user) saveData(`ac_plin_${user.email}`, plinuri); }, [plinuri]);
 
   if (!user) return <AuthScreen onLogin={login} />;
 
   const tabs = [
-    { id: 'dashboard', label: 'Acasă', icon: '🏠' },
-    { id: 'masini',    label: 'Mașini',  icon: '🚗' },
-    { id: 'documente', label: 'Documente', icon: '📄' },
-    { id: 'servicii',  label: 'Service', icon: '🔩' },
-    { id: 'profil',    label: 'Profil',  icon: '👤' },
+    { id: 'dashboard',  label: 'Acasă',    icon: '🏠' },
+    { id: 'masini',     label: 'Mașini',   icon: '🚗' },
+    { id: 'documente',  label: 'Documente', icon: '📄' },
+    { id: 'servicii',   label: 'Service',  icon: '🔩' },
+    { id: 'finante',    label: 'Finanțe',  icon: '📊' },
+    { id: 'remindere',  label: 'Alerte',   icon: '🔔' },
+    { id: 'profil',     label: 'Profil',   icon: '👤' },
   ];
 
   return (
     <div className="app-container">
       <div style={{paddingBottom: 80}}>
-        {tab === 'dashboard' && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
-        {tab === 'masini'    && <Masini cars={cars} setCars={setCars} docs={docs} setDocs={setDocs} />}
-        {tab === 'documente' && <Documente docs={docs} setDocs={setDocs} cars={cars} />}
-        {tab === 'servicii'  && <Servicii services={services} setServices={setServices} cars={cars} />}
-        {tab === 'profil'    && <Profil user={user} setUser={setUser} onLogout={logout} />}
+        {tab === 'dashboard'  && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
+        {tab === 'masini'     && <Masini cars={cars} setCars={setCars} docs={docs} setDocs={setDocs} />}
+        {tab === 'documente'  && <Documente docs={docs} setDocs={setDocs} cars={cars} />}
+        {tab === 'servicii'   && <Servicii services={services} setServices={setServices} cars={cars} />}
+        {tab === 'remindere'  && <Remindere cars={cars} docs={docs} services={services} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />}
+        {tab === 'finante'    && <Finante cars={cars} services={services} plinuri={plinuri} setPlinuri={setPlinuri} />}
+        {tab === 'profil'     && <Profil user={user} setUser={setUser} onLogout={logout} />}
       </div>
       <nav className="bottom-nav">
         <div className="flex">
