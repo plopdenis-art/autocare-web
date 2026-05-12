@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>AutoCare</title>
-  <link rel="icon" type="image/png" href="logo2-round.PNG">
-  <link rel="apple-touch-icon" href="logo2-round.PNG">
+  <link rel="icon" type="image/png" href="icon-app.PNG">
+  <link rel="apple-touch-icon" href="icon-app.PNG">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1e3a8a">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -151,7 +151,7 @@ function AuthScreen({ onLogin }) {
     <div className="app-container min-h-screen flex flex-col">
       {/* Hero */}
       <div className="bg-blue-600 px-6 pt-12 pb-10 text-white text-center">
-        <div style={{width: '260px', height: '260px', borderRadius: '50%', margin: '0 auto 8px', backgroundImage: 'url(logo3.PNG)', backgroundSize: 'auto 140%', backgroundPosition: 'center center'}} />
+        <img src="icon-app.PNG" alt="AutoCare" style={{width: '200px', height: '200px', borderRadius: '50%', margin: '0 auto 8px', display: 'block'}} />
         <p className="text-blue-200 mt-1 text-sm">Gestionează mașina ta cu ușurință</p>
       </div>
 
@@ -1611,7 +1611,7 @@ function App() {
   return (
     <div className="app-container">
       <div style={{background: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)'}}>
-        <img src="logo3.PNG" alt="AutoCare" style={{height: '52px', width: '52px', objectFit: 'cover', borderRadius: '50%'}} />
+        <img src="logo-text.svg" alt="AutoCare" style={{height: '38px', width: 'auto'}} />
       </div>
       <div style={{paddingBottom: 80}}>
         {tab === 'dashboard'  && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
