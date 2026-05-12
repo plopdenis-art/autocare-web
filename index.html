@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>AutoCare</title>
+  <link rel="icon" type="image/png" href="logo.PNG">
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -143,10 +144,9 @@ function AuthScreen({ onLogin }) {
   return (
     <div className="app-container min-h-screen flex flex-col">
       {/* Hero */}
-      <div className="bg-blue-600 px-6 pt-16 pb-12 text-white text-center">
-        <div className="text-5xl mb-3">🚗</div>
-        <h1 className="text-3xl font-bold">AutoCare</h1>
-        <p className="text-blue-200 mt-2 text-sm">Gestionează mașina ta cu ușurință</p>
+      <div className="bg-blue-600 px-6 pt-12 pb-10 text-white text-center">
+        <img src="logo.PNG" alt="AutoCare" style={{width: '220px', height: 'auto', margin: '0 auto 8px', display: 'block', filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))'}} />
+        <p className="text-blue-200 mt-1 text-sm">Gestionează mașina ta cu ușurință</p>
       </div>
 
       {/* Form */}
@@ -340,7 +340,7 @@ function Dashboard({ cars, docs, services, user, onTab }) {
         <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">🔍 Verificări rapide</h2>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { icon:'🔧', label:'Verificare ITP', sub:'registrulautoverificat.ro', url:'https://www.registrulautoverificat.ro/' },
+            { icon:'🔧', label:'Verificare ITP', sub:'rarom.ro', url:'https://www.rarom.ro/' },
             { icon:'🛡️', label:'Verificare RCA', sub:'asfromania.ro', url:'https://www.asfromania.ro/' },
             { icon:'🛣️', label:'Rovinieta', sub:'erovinieta.ro', url:'https://www.erovinieta.ro/' },
             { icon:'📋', label:'Amenzi rutiere', sub:'ghiseul.ro', url:'https://www.ghiseul.ro/' },
@@ -1604,6 +1604,9 @@ function App() {
 
   return (
     <div className="app-container">
+      <div style={{background: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)'}}>
+        <img src="logo.PNG" alt="AutoCare" style={{height: '48px', width: 'auto', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))'}} />
+      </div>
       <div style={{paddingBottom: 80}}>
         {tab === 'dashboard'  && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
         {tab === 'masini'     && <Masini cars={cars} setCars={setCars} docs={docs} setDocs={setDocs} />}
