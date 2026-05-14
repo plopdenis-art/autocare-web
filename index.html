@@ -15,6 +15,7 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; }
@@ -51,6 +52,11 @@
 </head>
 <body>
 <div id="root"></div>
+<script>
+  const SUPA_URL = 'https://metfudonnugvcjxjhwcc.supabase.co';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ldGZ1ZG9ubnVndmNqeGpod2NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NTM0NjUsImV4cCI6MjA5NDMyOTQ2NX0.iIeQ4uberZTK82n7IscTIgYYFe3wnSAYxNGLtw6mEgU';
+  const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+</script>
 <script type="text/babel">
 const { useState, useEffect } = React;
 
@@ -126,33 +132,46 @@ function AuthScreen({ onLogin }) {
   const [mode, setMode] = useState('login'); // login | register
   const [form, setForm] = useState({ nume: '', email: '', parola: '', confirma: '' });
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  function handleLogin() {
-    const users = loadData('ac_users', []);
-    const u = users.find(u => u.email === form.email.toLowerCase() && u.parola === form.parola);
-    if (!u) { setErr('Email sau parolă incorectă.'); return; }
-    saveData('ac_current', u.email);
-    onLogin(u);
+  async function handleLogin() {
+    setErr(''); setLoading(true);
+    try {
+      const {data, error} = await sb.auth.signInWithPassword({email: form.email, password: form.parola});
+      if (error) throw error;
+      onLogin(data.user);
+    } catch(e) {
+      setErr(e.message === 'Invalid login credentials' ? 'Email sau parolă greșite' : e.message);
+    }
+    setLoading(false);
   }
 
-  function handleRegister() {
-    if (!form.nume || !form.email || !form.parola) { setErr('Completează toate câmpurile.'); return; }
-    if (form.parola !== form.confirma) { setErr('Parolele nu coincid.'); return; }
-    if (form.parola.length < 6) { setErr('Parola trebuie să aibă minim 6 caractere.'); return; }
-    const users = loadData('ac_users', []);
-    if (users.find(u => u.email === form.email.toLowerCase())) { setErr('Email-ul este deja înregistrat.'); return; }
-    const u = { id: Date.now(), nume: form.nume, email: form.email.toLowerCase(), parola: form.parola, telefon: '' };
-    saveData('ac_users', [...users, u]);
-    saveData('ac_current', u.email);
-    onLogin(u);
+  async function handleRegister() {
+    setErr('');
+    if (!form.nume.trim()) return setErr('Introdu numele');
+    if (!form.email.includes('@')) return setErr('Email invalid');
+    if (form.parola.length < 6) return setErr('Parola min. 6 caractere');
+    if (form.parola !== form.confirma) return setErr('Parolele nu coincid');
+    setLoading(true);
+    try {
+      const {data, error} = await sb.auth.signUp({
+        email: form.email, password: form.parola,
+        options: {data: {nume: form.nume}}
+      });
+      if (error) throw error;
+      if (data.user) onLogin(data.user);
+      else setErr('Verifică emailul pentru confirmare cont');
+    } catch(e) { setErr(e.message); }
+    setLoading(false);
   }
 
   return (
     <div className="app-container min-h-screen flex flex-col">
       {/* Hero */}
       <div className="bg-blue-600 px-6 pt-12 pb-10 text-white text-center">
-        <img src="icon-app.PNG" alt="AutoCare" style={{width: '200px', height: '200px', borderRadius: '50%', margin: '0 auto 8px', display: 'block'}} />
-        <p className="text-blue-200 mt-1 text-sm">Gestionează mașina ta cu ușurință</p>
+        <div className="text-5xl mb-3">🚗</div>
+        <h1 className="text-3xl font-bold">AutoCare</h1>
+        <p className="text-blue-200 mt-2 text-sm">Gestionează mașina ta cu ușurință</p>
       </div>
 
       {/* Form */}
@@ -176,8 +195,8 @@ function AuthScreen({ onLogin }) {
           )}
         </div>
 
-        <button onClick={mode === 'login' ? handleLogin : handleRegister} className="mt-5 w-full bg-blue-600 text-white py-3.5 rounded-xl font-semibold text-sm shadow-lg shadow-blue-200">
-          {mode === 'login' ? 'Intră în cont' : 'Creează contul'}
+        <button onClick={mode === 'login' ? handleLogin : handleRegister} disabled={loading} className="mt-5 w-full bg-blue-600 disabled:bg-blue-400 text-white py-3.5 rounded-xl font-semibold text-sm shadow-lg shadow-blue-200">
+          {loading ? 'Se încarcă...' : (mode === 'login' ? 'Intră în cont' : 'Creează contul')}
         </button>
 
         {mode === 'login' && (
@@ -281,8 +300,8 @@ function Dashboard({ cars, docs, services, user, onTab }) {
     <div className="content p-4">
       <div className="flex items-center justify-between mb-6 pt-2">
         <div>
-          <p className="text-sm text-gray-500">Bună ziua,</p>
-          <h1 className="text-xl font-bold text-gray-800">{user.nume} 👋</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Auto Care</h1>
+          <p className="text-sm text-gray-500">Bună ziua, {user.nume} 👋</p>
         </div>
         <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.nume[0].toUpperCase()}</div>
       </div>
@@ -341,27 +360,6 @@ function Dashboard({ cars, docs, services, user, onTab }) {
         })}
       </div>
 
-      {/* Verificari rapide */}
-      <div className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">🔍 Verificări rapide</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { icon:'🔧', label:'Verificare ITP', sub:'rarom.ro', url:'https://www.rarom.ro/' },
-            { icon:'🛡️', label:'Verificare RCA', sub:'asfromania.ro', url:'https://www.asfromania.ro/' },
-            { icon:'🛣️', label:'Rovinieta', sub:'erovinieta.ro', url:'https://www.erovinieta.ro/' },
-            { icon:'📋', label:'Amenzi rutiere', sub:'ghiseul.ro', url:'https://www.ghiseul.ro/' },
-          ].map(item => (
-            <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="card p-3 flex items-center gap-2" style={{textDecoration:'none'}}>
-              <div className="text-2xl">{item.icon}</div>
-              <div>
-                <div className="text-sm font-semibold text-gray-800">{item.label}</div>
-                <div className="text-xs text-gray-400">{item.sub}</div>
-              </div>
-            </a>
-          ))}
-        </div>
-      </div>
-
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">🔩 Ultimele service-uri</h2>
@@ -382,6 +380,27 @@ function Dashboard({ cars, docs, services, user, onTab }) {
             </div>
           );
         })}
+      </div>
+
+      {/* Verificari rapide - jos */}
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">🔍 Verificări rapide</h2>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { icon:'🔧', label:'Verificare ITP', sub:'rarom.ro', url:'https://www.rarom.ro/' },
+            { icon:'🛡️', label:'Verificare RCA', sub:'asfromania.ro', url:'https://www.asfromania.ro/' },
+            { icon:'🛣️', label:'Rovinieta', sub:'erovinieta.ro', url:'https://www.erovinieta.ro/' },
+            { icon:'📋', label:'Amenzi rutiere', sub:'ghiseul.ro', url:'https://www.ghiseul.ro/' },
+          ].map(item => (
+            <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className="card p-3 flex items-center gap-2" style={{textDecoration:'none'}}>
+              <div className="text-2xl">{item.icon}</div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800">{item.label}</div>
+                <div className="text-xs text-gray-400">{item.sub}</div>
+              </div>
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1562,39 +1581,129 @@ function App() {
   const [plinuri, setPlinuri] = useState([]);
   const [preferences, setPreferences] = useState({ notif30: true, notif7: true, notif1: false, darkMode: false, emailNotif: '' });
 
+  const [sbUser, setSbUser] = React.useState(null);
+  const isLoading = React.useRef(true);
+
   useEffect(() => {
-    const email = loadData('ac_current', null);
-    if (email) {
-      const users = loadData('ac_users', []);
-      const u = users.find(u => u.email === email);
-      if (u) login(u);
-    }
+    sb.auth.getSession().then(({data: {session}}) => {
+      if (session?.user) handleAuthUser(session.user);
+      else isLoading.current = false;
+    });
+    const {data: {subscription}} = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null); setSbUser(null);
+        setCars([]); setDocs([]); setServices([]); setPlinuri([]);
+        setTab('dashboard');
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  function login(u) {
-    setUser(u);
-    setCars(loadData(`ac_cars_${u.email}`, []));
-    setDocs(loadData(`ac_docs_${u.email}`, []));
-    setServices(loadData(`ac_svc_${u.email}`, []));
-    setReminderSettings(loadData(`ac_rem_${u.email}`, { zile: [30, 7], oilInterval: {} }));
-    setPlinuri(loadData(`ac_plin_${u.email}`, []));
-    const prefs = loadData(`ac_pref_${u.email}`, { notif30: true, notif7: true, notif1: false, darkMode: false, emailNotif: '' });
-    setPreferences(prefs);
-    document.body.classList.toggle('dark', prefs.darkMode);
+  function login(sbU) { handleAuthUser(sbU); }
+
+  async function handleAuthUser(sbU) {
+    setSbUser(sbU);
+    setUser({email: sbU.email, nume: sbU.user_metadata?.nume || sbU.email.split('@')[0]});
+    isLoading.current = true;
+    const [carsR, docsR, servR, plinR, prefR] = await Promise.all([
+      sb.from('cars').select('*').eq('user_id', sbU.id),
+      sb.from('docs').select('*').eq('user_id', sbU.id),
+      sb.from('services').select('*').eq('user_id', sbU.id),
+      sb.from('plinuri').select('*').eq('user_id', sbU.id),
+      sb.from('preferences').select('*').eq('user_id', sbU.id).maybeSingle()
+    ]);
+    setCars(carsR.data || []);
+    setDocs(docsR.data || []);
+    setServices(servR.data || []);
+    setPlinuri(plinR.data || []);
+    if (prefR.data) {
+      const s = prefR.data.settings || {};
+      setPreferences({notif30:true,notif7:true,notif1:false,darkMode:false,emailNotif:'',...s});
+      setReminderSettings(prefR.data.reminder_settings || {zile:[30,7],oilInterval:{}});
+      document.body.classList.toggle('dark', s.darkMode || false);
+    }
+    setTimeout(() => { isLoading.current = false; }, 200);
   }
 
-  function logout() {
-    saveData('ac_current', null);
-    setUser(null); setCars([]); setDocs([]); setServices([]);
-    setTab('dashboard');
+  async function logout() {
+    await sb.auth.signOut();
   }
 
-  useEffect(() => { if (user) saveData(`ac_cars_${user.email}`, cars); }, [cars]);
-  useEffect(() => { if (user) saveData(`ac_docs_${user.email}`, docs); }, [docs]);
-  useEffect(() => { if (user) saveData(`ac_svc_${user.email}`, services); }, [services]);
-  useEffect(() => { if (user) saveData(`ac_rem_${user.email}`, reminderSettings); }, [reminderSettings]);
-  useEffect(() => { if (user) saveData(`ac_plin_${user.email}`, plinuri); }, [plinuri]);
-  useEffect(() => { if (user) saveData(`ac_pref_${user.email}`, preferences); }, [preferences]);
+  const prevCars = React.useRef([]);
+  const prevDocs = React.useRef([]);
+  const prevServices = React.useRef([]);
+  const prevPlinuri = React.useRef([]);
+
+  async function syncTable(table, curr, prev, userId) {
+    const toUpsert = curr.filter(c => {
+      const p = prev.find(x => x.id === c.id);
+      return !p || JSON.stringify(p) !== JSON.stringify(c);
+    });
+    const toDelete = prev.filter(p => !curr.find(c => c.id === p.id));
+    if (toUpsert.length > 0)
+      await sb.from(table).upsert(toUpsert.map(x => ({...x, user_id: userId})), {onConflict: 'id'});
+    if (toDelete.length > 0)
+      await Promise.all(toDelete.map(x => sb.from(table).delete().eq('id', x.id)));
+  }
+
+  useEffect(() => {
+    if (!sbUser || isLoading.current) return;
+    syncTable('cars', cars, prevCars.current, sbUser.id);
+    prevCars.current = cars;
+  }, [cars]);
+
+  useEffect(() => {
+    if (!sbUser || isLoading.current) return;
+    syncTable('docs', docs, prevDocs.current, sbUser.id);
+    prevDocs.current = docs;
+  }, [docs]);
+
+  useEffect(() => {
+    if (!sbUser || isLoading.current) return;
+    syncTable('services', services, prevServices.current, sbUser.id);
+    prevServices.current = services;
+  }, [services]);
+
+  useEffect(() => {
+    if (!sbUser || isLoading.current) return;
+    syncTable('plinuri', plinuri, prevPlinuri.current, sbUser.id);
+    prevPlinuri.current = plinuri;
+  }, [plinuri]);
+
+  // ── Verificare automata la deschidere + la fiecare ora ──
+  useEffect(() => {
+    if (!user || !docs.length) return;
+    function verificaExpirari() {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const zilePrag = reminderSettings?.zile || [30, 7];
+      const pragMin = Math.max(...zilePrag);
+      docs.forEach(doc => {
+        const zile = zilePanaLa(doc.expira);
+        if (zile < 0 || zile > pragMin) return;
+        const car = cars.find(c => c.id === doc.carId);
+        const numeDoc = doc.tip;
+        const numeMasina = car ? `${car.marca} ${car.model}` : '';
+        let mesaj = '';
+        if (zile < 0) mesaj = `${numeDoc} a expirat!`;
+        else if (zile === 0) mesaj = `${numeDoc} expiră AZI!`;
+        else mesaj = `${numeDoc} expiră în ${zile} zile`;
+        new Notification(`🚗 AutoCare — ${numeMasina}`, {
+          body: mesaj,
+          icon: 'icon-app.PNG'
+        });
+      });
+    }
+    verificaExpirari();
+    const interval = setInterval(verificaExpirari, 60 * 60 * 1000); // la fiecare ora
+    return () => clearInterval(interval);
+  }, [user, docs, cars, reminderSettings]);
+  useEffect(() => {
+    if (!sbUser || isLoading.current) return;
+    sb.from('preferences').upsert({
+      user_id: sbUser.id, settings: preferences,
+      reminder_settings: reminderSettings, nume: user?.nume
+    }, {onConflict: 'user_id'});
+  }, [preferences, reminderSettings]);
 
   if (!user) return <AuthScreen onLogin={login} />;
 
@@ -1610,9 +1719,6 @@ function App() {
 
   return (
     <div className="app-container">
-      <div style={{background: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)'}}>
-        <img src="logo-text.svg" alt="AutoCare" style={{height: '38px', width: 'auto'}} />
-      </div>
       <div style={{paddingBottom: 80}}>
         {tab === 'dashboard'  && <Dashboard cars={cars} docs={docs} services={services} user={user} onTab={setTab} />}
         {tab === 'masini'     && <Masini cars={cars} setCars={setCars} docs={docs} setDocs={setDocs} />}
