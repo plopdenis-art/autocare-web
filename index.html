@@ -129,10 +129,24 @@ function loadData(key, def) { try { const v = localStorage.getItem(key); return 
 
 // ─── AUTH SCREENS ─────────────────────────────────────────────────────────────
 function AuthScreen({ onLogin }) {
-  const [mode, setMode] = useState('login'); // login | register
+  const [mode, setMode] = useState('login'); // login | register | reset
   const [form, setForm] = useState({ nume: '', email: '', parola: '', confirma: '' });
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  async function handleReset() {
+    if (!form.email.includes('@')) return setErr('Introdu emailul tău');
+    setErr(''); setLoading(true);
+    try {
+      const { error } = await sb.auth.resetPasswordForEmail(form.email, {
+        redirectTo: window.location.origin + '/index.html'
+      });
+      if (error) throw error;
+      setResetSent(true);
+    } catch(e) { setErr(e.message); }
+    setLoading(false);
+  }
 
   async function handleLogin() {
     setErr(''); setLoading(true);
@@ -184,25 +198,54 @@ function AuthScreen({ onLogin }) {
 
         {err && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">{err}</div>}
 
-        <div className="space-y-3">
-          {mode === 'register' && (
-            <input value={form.nume} onChange={e => setForm({...form, nume: e.target.value})} placeholder="Nume complet" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
-          )}
-          <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Adresă email" type="email" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
-          <input value={form.parola} onChange={e => setForm({...form, parola: e.target.value})} placeholder="Parolă" type="password" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
-          {mode === 'register' && (
-            <input value={form.confirma} onChange={e => setForm({...form, confirma: e.target.value})} placeholder="Confirmă parola" type="password" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
-          )}
-        </div>
+        {mode === 'reset' ? (
+          resetSent ? (
+            <div className="text-center py-6">
+              <div className="text-4xl mb-3">📧</div>
+              <h2 className="font-bold text-gray-800 mb-2">Email trimis!</h2>
+              <p className="text-sm text-gray-500 mb-6">Verifică emailul și apasă linkul pentru a seta o parolă nouă.</p>
+              <button onClick={() => { setMode('login'); setResetSent(false); setErr(''); }} className="text-blue-600 text-sm font-medium">← Înapoi la login</button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-gray-500 mb-4">Introdu emailul contului tău și îți trimitem un link de resetare.</p>
+              <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Adresă email" type="email" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm mb-4" />
+              <button onClick={handleReset} disabled={loading} className="w-full bg-blue-600 disabled:bg-blue-400 text-white py-3.5 rounded-xl font-semibold text-sm">
+                {loading ? 'Se trimite...' : 'Trimite link resetare'}
+              </button>
+              <p className="text-center text-xs text-gray-400 mt-4">
+                <button onClick={() => { setMode('login'); setErr(''); }} className="text-blue-600 font-medium">← Înapoi la login</button>
+              </p>
+            </div>
+          )
+        ) : (
+          <>
+            <div className="space-y-3">
+              {mode === 'register' && (
+                <input value={form.nume} onChange={e => setForm({...form, nume: e.target.value})} placeholder="Nume complet" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+              )}
+              <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Adresă email" type="email" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+              <input value={form.parola} onChange={e => setForm({...form, parola: e.target.value})} placeholder="Parolă" type="password" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+              {mode === 'register' && (
+                <input value={form.confirma} onChange={e => setForm({...form, confirma: e.target.value})} placeholder="Confirmă parola" type="password" className="w-full border border-gray-200 rounded-xl p-3.5 text-sm" />
+              )}
+            </div>
 
-        <button onClick={mode === 'login' ? handleLogin : handleRegister} disabled={loading} className="mt-5 w-full bg-blue-600 disabled:bg-blue-400 text-white py-3.5 rounded-xl font-semibold text-sm shadow-lg shadow-blue-200">
-          {loading ? 'Se încarcă...' : (mode === 'login' ? 'Intră în cont' : 'Creează contul')}
-        </button>
+            <button onClick={mode === 'login' ? handleLogin : handleRegister} disabled={loading} className="mt-5 w-full bg-blue-600 disabled:bg-blue-400 text-white py-3.5 rounded-xl font-semibold text-sm shadow-lg shadow-blue-200">
+              {loading ? 'Se încarcă...' : (mode === 'login' ? 'Intră în cont' : 'Creează contul')}
+            </button>
 
-        {mode === 'login' && (
-          <p className="text-center text-xs text-gray-400 mt-4">
-            Nu ai cont? <button onClick={() => { setMode('register'); setErr(''); }} className="text-blue-600 font-medium">Înregistrează-te</button>
-          </p>
+            {mode === 'login' && (
+              <div className="text-center mt-4 space-y-2">
+                <p className="text-xs text-gray-400">
+                  <button onClick={() => { setMode('reset'); setErr(''); }} className="text-blue-600 font-medium">Ai uitat parola?</button>
+                </p>
+                <p className="text-xs text-gray-400">
+                  Nu ai cont? <button onClick={() => { setMode('register'); setErr(''); }} className="text-blue-600 font-medium">Înregistrează-te</button>
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1502,11 +1545,6 @@ function Profil({ user, setUser, onLogout, cars, docs, services, preferences, se
       {/* Notificari & Preferinte */}
       <SectionHeader title="🔔 Notificări & Preferințe" />
       <div className="card p-4 mb-1">
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block font-medium">Email pentru remindere</label>
-          <input value={preferences.emailNotif || user.email} onChange={e => setPreferences({...preferences, emailNotif: e.target.value})}
-            placeholder="email@exemplu.ro" type="email" className="w-full border border-gray-200 rounded-xl p-3 text-sm mb-3" />
-        </div>
         {[
           { key:'notif30', label:'Alertă la 30 de zile înainte' },
           { key:'notif7',  label:'Alertă la 7 zile înainte' },
